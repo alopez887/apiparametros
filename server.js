@@ -23,8 +23,7 @@ app.get('/', (req, res) => {
     id              integer PK
     mxn_enabled     boolean
     tipo_cambio_mxn numeric(10,4)
-    updated_at      timestamptz
-
+    updated_at      timestamp  <-- ya SIN time zone
   Usamos SIEMPRE id = 1 como único registro.
   ============================
 */
@@ -56,7 +55,7 @@ app.post('/api/tipo-cambio', async (req, res) => {
   try {
     let { mxn_enabled, tipo_cambio_mxn } = req.body || {};
 
-    // Normalizar booleano (acepta true/false, "true"/"false", 1/0, "1"/"0")
+    // Normalizar booleano
     const enabled = (
       mxn_enabled === true  ||
       mxn_enabled === 'true' ||
@@ -75,12 +74,12 @@ app.post('/api/tipo-cambio', async (req, res) => {
     // UPSERT sobre id = 1
     const sql = `
       INSERT INTO tipo_cambio (id, mxn_enabled, tipo_cambio_mxn, updated_at)
-      VALUES (1, $1, $2, NOW())
+      VALUES (1, $1, $2, now() AT TIME ZONE 'America/Mazatlan')
       ON CONFLICT (id)
       DO UPDATE SET
         mxn_enabled     = EXCLUDED.mxn_enabled,
         tipo_cambio_mxn = EXCLUDED.tipo_cambio_mxn,
-        updated_at      = NOW()
+        updated_at      = now() AT TIME ZONE 'America/Mazatlan'
       RETURNING id, mxn_enabled, tipo_cambio_mxn, updated_at;
     `;
 
