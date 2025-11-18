@@ -12,12 +12,17 @@ const pool = new Pool({
   database: process.env.PGDATABASE,
   port: process.env.PGPORT ? Number(process.env.PGPORT) : 5432,
   ssl: { rejectUnauthorized: false },
-
-  // tus extras (opcional):
   max: Number(process.env.PG_MAX || 5),
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 5000,
   application_name: process.env.APP_NAME || 'api-parametros'
+});
+
+/* 👇 AQUÍ forzamos zona horaria Mazatlán para todas las conexiones */
+pool.on('connect', (client) => {
+  client
+    .query("SET TIME ZONE 'America/Mazatlan'")
+    .catch(err => console.error('Error setting timezone', err));
 });
 
 export default pool;
