@@ -43,7 +43,7 @@ export async function contarCorreosReservacionError(req, res) {
  * en el rango de fechas indicado (fecha_reserva::date).
  * Si no se mandan desde/hasta, usa últimos 30 días.
  */
-export async function obtenerListaCorreosReservacionError(req, res) {
+export async function listarCorreosReservacionError(req, res) {
   try {
     let { desde, hasta } = req.query;
 
@@ -86,7 +86,7 @@ export async function obtenerListaCorreosReservacionError(req, res) {
       datos: rows
     });
   } catch (err) {
-    console.error('❌ obtenerListaCorreosReservacionError:', err);
+    console.error('❌ listarCorreosReservacionError:', err);
     return res.status(500).json({
       ok: false,
       error: 'Error al obtener lista de correos con estado distinto de enviado',
