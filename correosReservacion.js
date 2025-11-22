@@ -1,66 +1,79 @@
 // correosReservacion.js
 import pool from './conexion.js';
 
+const DBG = (...a) => {
+  if (process.env.DEBUG_CORREOS) {
+    console.log('[CORREOS-RESERVACION]', ...a);
+  }
+};
+
 /**
  * GET /api/correos-reservacion-error
- * Devuelve solo el TOTAL de registros con email_reservacion ≠ 'enviado'
+ * Devuelve solo el total de correos con email_reservacion distinto de 'enviado'
+ * para poder pintar el badge 🔕 en los menús.
  */
-export async function contarCorreosReservacionError(req, res, next) {
+export async function contarCorreosError(_req, res) {
   try {
     const sql = `
-      SELECT COUNT(*)::int AS total
+      SELECT COUNT(*) AS total
       FROM reservaciones
       WHERE email_reservacion IS NOT NULL
-        AND TRIM(email_reservacion) <> ''
         AND LOWER(email_reservacion) <> 'enviado'
     `;
-
     const { rows } = await pool.query(sql);
-    const total = rows?.[0]?.total ?? 0;
+    const total = Number(rows[0]?.total || 0);
 
-    return res.json({
-      ok: true,
-      totalErrores: total
-    });
+    DBG('TOTAL ERRORES =', total);
+    res.json({ ok: true, total });
   } catch (err) {
-    console.error('Error en contarCorreosReservacionError:', err);
-    return next(err);
+    console.error('💥 contarCorreosError:', err);
+    res.status(500).json({ ok: false, error: 'Error interno del servidor' });
   }
 }
 
 /**
  * GET /api/correos-reservacion-error/lista
- * Devuelve la LISTA de registros con email_reservacion ≠ 'enviado'
- * para alimentar el iframeMailnosend (folio, nombre, fecha, estatus, etc.)
+ * Lista las reservaciones cuyo email_reservacion sea distinto de 'enviado'.
+ * Opcional: filtrar por tipo_servicio = 'transporte' | 'tours'.
+ *
+ * NOTA: aquí YA NO filtramos por fecha; devolvemos todos los pendientes.
  */
-export async function listarCorreosReservacionError(req, res, next) {
+export async function listarCorreosError(req, res) {
   try {
-    const sql = `
-      SELECT
-        id,
-        folio,
-        nombre_cliente,
-        correo_cliente,
-        fecha,                -- fecha de compra
-        tipo_servicio,
-        tipo_viaje,
-        email_reservacion     -- estatus del correo
-      FROM reservaciones
+    const { servicio } = req.query; // 'transporte' | 'tours' | 'todos' | undefined
+
+    const params = [];
+    let where = `
       WHERE email_reservacion IS NOT NULL
-        AND TRIM(email_reservacion) <> ''
         AND LOWER(email_reservacion) <> 'enviado'
-      ORDER BY fecha DESC, id DESC
     `;
 
-    const { rows } = await pool.query(sql);
+    if (servicio && servicio !== 'todos') {
+      params.push(servicio);
+      where += ` AND tipo_servicio = $${params.length}`;
+    }
 
-    return res.json({
-      ok: true,
-      total: rows.length,
-      registros: rows
-    });
+    const sql = `
+      SELECT
+        folio,
+        nombre_cliente,
+        fecha,
+        email_reservacion,
+        tipo_servicio,
+        tipo_viaje,
+        correo_cliente
+      FROM reservaciones
+      ${where}
+      ORDER BY fecha DESC
+      LIMIT 500
+    `;
+
+    DBG('SQL LISTA =>', sql, 'PARAMS =>', params);
+    const { rows } = await pool.query(sql, params);
+
+    res.json({ ok: true, datos: rows });
   } catch (err) {
-    console.error('Error en listarCorreosReservacionError:', err);
-    return next(err);
+    console.error('💥 listarCorreosError:', err);
+    res.status(500).json({ ok: false, error: 'Error interno del servidor' });
   }
 }
