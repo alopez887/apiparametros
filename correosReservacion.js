@@ -95,3 +95,58 @@ export async function listarCorreosReservacionError(req, res) {
     });
   }
 }
+
+/**
+ * POST /api/correos-reservacion-error/actualizar-correo
+ * Actualiza SOLO el correo del cliente (correo_cliente) para un folio.
+ * Body esperado: { folio, correo }
+ */
+export async function actualizarCorreoCliente(req, res) {
+  try {
+    const { folio, correo } = req.body || {};
+
+    if (!folio || !correo) {
+      return res.status(400).json({
+        ok: false,
+        error: 'Faltan parámetros: folio y correo son requeridos'
+      });
+    }
+
+    // Validación básica de formato de correo
+    const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!re.test(correo)) {
+      return res.status(400).json({
+        ok: false,
+        error: 'Formato de correo inválido'
+      });
+    }
+
+    const sql = `
+      UPDATE reservaciones
+      SET correo_cliente = $1
+      WHERE folio = $2
+      RETURNING folio, correo_cliente
+    `;
+
+    const { rows } = await pool.query(sql, [correo, folio]);
+
+    if (!rows.length) {
+      return res.status(404).json({
+        ok: false,
+        error: 'No se encontró una reservación con ese folio'
+      });
+    }
+
+    return res.json({
+      ok: true,
+      mensaje: 'Correo actualizado correctamente',
+      registro: rows[0]
+    });
+  } catch (err) {
+    console.error('❌ actualizarCorreoCliente:', err);
+    return res.status(500).json({
+      ok: false,
+      error: 'Error al actualizar el correo del cliente'
+    });
+  }
+}

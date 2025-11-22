@@ -10,7 +10,8 @@ import { guardarTipoCambio } from './guardarTipoCambio.js';
 // 🔹 NUEVO: handlers para correos de reservación
 import {
   contarCorreosReservacionError,
-  listarCorreosReservacionError
+  listarCorreosReservacionError,
+  actualizarCorreoCliente,
 } from './correosReservacion.js';
 
 const app = express();
@@ -34,6 +35,9 @@ app.get('/api/correos-reservacion-error', contarCorreosReservacionError);
 
 // 🔹 Correos reservación – lista detallada para iframeMailnosend
 app.get('/api/correos-reservacion-error/lista', listarCorreosReservacionError);
+
+// NUEVA ruta para editar correo
+app.post('/api/correos-reservacion-error/actualizar-correo', actualizarCorreoCliente);
 
 app.use((req, res) => {
   res.status(404).json({ error: 'Ruta no encontrada' });
