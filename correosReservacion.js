@@ -1,79 +1,96 @@
 // correosReservacion.js
 import pool from './conexion.js';
 
-const DBG = (...a) => {
-  if (process.env.DEBUG_CORREOS) {
-    console.log('[CORREOS-RESERVACION]', ...a);
-  }
-};
+/**
+ * Normaliza un string de fecha tipo YYYY-MM-DD.
+ * Si viene vacío o inválido, regresa null.
+ */
+function normalizarFecha(str) {
+  if (!str) return null;
+  const d = new Date(str);
+  if (Number.isNaN(d.getTime())) return null;
+  // YYYY-MM-DD
+  return d.toISOString().slice(0, 10);
+}
 
 /**
  * GET /api/correos-reservacion-error
- * Devuelve solo el total de correos con email_reservacion distinto de 'enviado'
- * para poder pintar el badge 🔕 en los menús.
+ * Devuelve SOLO el número total de reservaciones cuyo email_reservacion
+ * es distinto de 'enviado'.
  */
-export async function contarCorreosError(_req, res) {
+export async function contarCorreosReservacionError(req, res) {
   try {
     const sql = `
       SELECT COUNT(*) AS total
       FROM reservaciones
-      WHERE email_reservacion IS NOT NULL
-        AND LOWER(email_reservacion) <> 'enviado'
+      WHERE COALESCE(LOWER(email_reservacion), '') <> 'enviado'
     `;
     const { rows } = await pool.query(sql);
-    const total = Number(rows[0]?.total || 0);
-
-    DBG('TOTAL ERRORES =', total);
-    res.json({ ok: true, total });
+    const total = Number(rows?.[0]?.total || 0);
+    return res.json({ ok: true, total });
   } catch (err) {
-    console.error('💥 contarCorreosError:', err);
-    res.status(500).json({ ok: false, error: 'Error interno del servidor' });
+    console.error('❌ contarCorreosReservacionError:', err);
+    return res.status(500).json({
+      ok: false,
+      error: 'Error al contar correos con estado distinto de enviado'
+    });
   }
 }
 
 /**
- * GET /api/correos-reservacion-error/lista
- * Lista las reservaciones cuyo email_reservacion sea distinto de 'enviado'.
- * Opcional: filtrar por tipo_servicio = 'transporte' | 'tours'.
- *
- * NOTA: aquí YA NO filtramos por fecha; devolvemos todos los pendientes.
+ * GET /api/correos-reservacion-error/lista?desde=YYYY-MM-DD&hasta=YYYY-MM-DD
+ * Lista las reservaciones cuyo email_reservacion es distinto de 'enviado'
+ * en el rango de fechas indicado (fecha_reserva::date).
+ * Si no se mandan desde/hasta, usa últimos 30 días.
  */
-export async function listarCorreosError(req, res) {
+export async function obtenerListaCorreosReservacionError(req, res) {
   try {
-    const { servicio } = req.query; // 'transporte' | 'tours' | 'todos' | undefined
+    let { desde, hasta } = req.query;
 
-    const params = [];
-    let where = `
-      WHERE email_reservacion IS NOT NULL
-        AND LOWER(email_reservacion) <> 'enviado'
-    `;
+    // Normalizar fechas
+    let fHasta = normalizarFecha(hasta);
+    let fDesde = normalizarFecha(desde);
 
-    if (servicio && servicio !== 'todos') {
-      params.push(servicio);
-      where += ` AND tipo_servicio = $${params.length}`;
+    const hoy = new Date();
+
+    if (!fHasta) {
+      fHasta = hoy.toISOString().slice(0, 10); // hoy
+    }
+
+    if (!fDesde) {
+      const d = new Date(fHasta);
+      d.setDate(d.getDate() - 30); // últimos 30 días
+      fDesde = d.toISOString().slice(0, 10);
     }
 
     const sql = `
       SELECT
         folio,
         nombre_cliente,
-        fecha,
-        email_reservacion,
-        tipo_servicio,
-        tipo_viaje,
-        correo_cliente
+        fecha_reserva,
+        email_reservacion
       FROM reservaciones
-      ${where}
-      ORDER BY fecha DESC
+      WHERE COALESCE(LOWER(email_reservacion), '') <> 'enviado'
+        AND fecha_reserva::date BETWEEN $1 AND $2
+      ORDER BY fecha_reserva DESC
       LIMIT 500
     `;
 
-    DBG('SQL LISTA =>', sql, 'PARAMS =>', params);
-    const { rows } = await pool.query(sql, params);
+    const { rows } = await pool.query(sql, [fDesde, fHasta]);
 
-    res.json({ ok: true, datos: rows });
+    return res.json({
+      ok: true,
+      desde: fDesde,
+      hasta: fHasta,
+      total: rows.length,
+      datos: rows
+    });
   } catch (err) {
-    console.error('💥 listarCorreosError:', err);
-    res.status(500).json({ ok: false, error: 'Error interno del servidor' });
+    console.error('❌ obtenerListaCorreosReservacionError:', err);
+    return res.status(500).json({
+      ok: false,
+      error: 'Error al obtener lista de correos con estado distinto de enviado',
+      datos: []
+    });
   }
 }
