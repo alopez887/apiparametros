@@ -40,7 +40,7 @@ export async function contarCorreosReservacionError(req, res) {
 /**
  * GET /api/correos-reservacion-error/lista?desde=YYYY-MM-DD&hasta=YYYY-MM-DD
  * Lista las reservaciones cuyo email_reservacion es distinto de 'enviado'
- * en el rango de fechas indicado (fecha_reserva::date).
+ * en el rango de fechas indicado (fecha::date).
  * Si no se mandan desde/hasta, usa últimos 30 días.
  */
 export async function listarCorreosReservacionError(req, res) {
@@ -67,12 +67,12 @@ export async function listarCorreosReservacionError(req, res) {
       SELECT
         folio,
         nombre_cliente,
-        fecha_reserva,
+        fecha,
         email_reservacion
       FROM reservaciones
       WHERE COALESCE(LOWER(email_reservacion), '') <> 'enviado'
-        AND fecha_reserva::date BETWEEN $1 AND $2
-      ORDER BY fecha_reserva DESC
+        AND fecha::date BETWEEN $1 AND $2
+      ORDER BY fecha DESC
       LIMIT 500
     `;
 
