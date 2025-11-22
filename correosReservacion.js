@@ -68,6 +68,7 @@ export async function listarCorreosReservacionError(req, res) {
         folio,
         nombre_cliente,
         fecha,
+        correo_cliente,
         email_reservacion
       FROM reservaciones
       WHERE COALESCE(LOWER(email_reservacion), '') <> 'enviado'
