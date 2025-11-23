@@ -15,46 +15,74 @@ import pool from './conexion.js';
  *   tipo_servicio: "actividad",
  *   idioma: "es",
  *   reserva: { ...fila completa... },
- *   subject: "Reservation Confirmation – ...",
- *   html: "<!DOCTYPE html>..."
+ *   subject: "Confirmación de compra - Folio ...",
+ *   html: "<table>...</table>"
  * }
  */
 
-// ===== Helpers compartidos (copiados/adaptados del correo real) =====
-
-const EMAIL_CSS = `
-<style>
-  .body-cts { font-family: Arial, Helvetica, sans-serif; color:#222; }
-  .section-title { font-size:13px; letter-spacing:.4px; text-transform:uppercase; color:#000; font-weight:700; }
-  .divider { border-top:1px solid #e5e9f0; height:1px; line-height:1px; font-size:0; }
-  .img-fluid { display:block; width:100%; height:auto; border-radius:8px; }
-  @media screen and (max-width:480px){
-    .logoimg { height:45px !important; width:auto !important; }
+// ===== i18n (copiado de enviarCorreo.js) ====
+const STR = {
+  en: {
+    hero: '✅ Thank you for your purchase!',
+    folio: 'Folio',
+    name: 'Name',
+    email: 'e-mail',
+    phone: 'Phone',
+    activity: 'Activity',
+    adults: 'Adults',
+    children: 'Children',
+    time: 'Time',
+    packagePurchased: 'Package purchased',
+    selectedPackage: 'Selected package',
+    quantity: 'Quantity',
+    pricePerPackage: 'Price per package',
+    customerNote: 'Notes',
+    total: 'Total',
+    selectionTitle: 'Your selection',
+    selectionHint: 'The following activities were selected:',
+    providerBlockP1: (provName = 'our partner') =>
+      `The <strong>${provName}</strong> representative has been copied on this email and will coordinate scheduling—at the <strong>date</strong> and <strong>time</strong> of your choice—of the activity you purchased through our website. Should you have any questions, please contact us via the <strong>WhatsApp</strong> channel listed on our website.`,
+    provider: 'Service Provider',
+    recommendationsTitle: '⚠ Recommendations:',
+    recommendationsBody:
+      ' It is very important that you communicate at least 24 hours before taking the tour to confirm your reservation and avoid inconveniences...',
+    sentTo: 'This confirmation was sent to',
+    subject: (folio) => `Purchase Confirmation - Folio ${folio}`
+  },
+  es: {
+    hero: '✅ ¡Gracias por tu compra!',
+    folio: 'Folio',
+    name: 'Nombre',
+    email: 'Correo',
+    phone: 'Teléfono',
+    activity: 'Actividad',
+    adults: 'Adultos',
+    children: 'Niños',
+    time: 'Tiempo',
+    packagePurchased: 'Paquetes comprados',
+    selectedPackage: 'Paquete seleccionado',
+    quantity: 'Cantidad',
+    pricePerPackage: 'Precio por paquete',
+    customerNote: 'Notas',
+    total: 'Total',
+    selectionTitle: 'Tu selección',
+    selectionHint: 'Se eligieron las siguientes actividades:',
+    providerBlockP1: (provName = 'nuestro proveedor') =>
+      `En este correo está copiado el representante de <strong>${provName}</strong> que se encargará de coordinar y programar la <strong>fecha</strong> y <strong>hora</strong> de tu preferencia para llevar a cabo la actividad que adquiriste en nuestro sitio web. Si tienes alguna duda o pregunta, por favor contáctanos por el canal de <strong>WhatsApp</strong> publicado en nuestro sitio web.`,
+    provider: 'Proveedor del servicio',
+    recommendationsTitle: '⚠ Recomendaciones:',
+    recommendationsBody:
+      ' Es muy importante que te comuniques al menos 24 horas antes de tomar el tour para confirmar tu reservación y evitar contratiempos...',
+    sentTo: 'Esta confirmación fue enviada a',
+    subject: (folio) => `Confirmación de compra - Folio ${folio}`
   }
-</style>`;
+};
 
-const LOGO_URL = 'https://static.wixstatic.com/media/f81ced_636e76aeb741411b87c4fa8aa9219410~mv2.png';
-
-const _fmt = (v) => (v === 0 ? '0' : (v ?? '—'));
-
-function firstNonNil(...vals) {
-  for (const v of vals) {
-    if (v !== undefined && v !== null && v !== '') return v;
-  }
-  return null;
-}
-
-function fmtDMY(dateLike) {
-  try {
-    const d = new Date(dateLike);
-    if (Number.isNaN(d.getTime())) return '—';
-    const dd = String(d.getUTCDate()).padStart(2, '0');
-    const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
-    const yyyy = d.getUTCFullYear();
-    return `${dd}/${mm}/${yyyy}`;
-  } catch {
-    return '—';
-  }
+function pickLang(datos = {}) {
+  const raw = String(datos.idioma || datos.lang || datos.language || '').trim().toLowerCase();
+  if (raw.startsWith('es')) return 'es';
+  if (raw.startsWith('en')) return 'en';
+  return 'es'; // fallback
 }
 
 function sanitizeUrl(u = '') {
@@ -68,223 +96,269 @@ function sanitizeUrl(u = '') {
     return '';
   }
 }
-
-function forceJpgIfWix(url = '') {
+function forceJpgIfWix(url='') {
   try {
     const u = new URL(url);
     if (/wixstatic\.com$/i.test(u.hostname)) {
-      if (!u.searchParams.has('format')) u.searchParams.set('format', 'jpg');
-      if (!u.searchParams.has('width'))  u.searchParams.set('width', '1200');
+      if (!u.searchParams.has('format')) u.searchParams.set('format','jpg');
+      if (!u.searchParams.has('width'))  u.searchParams.set('width','1200');
       return u.toString();
     }
-  } catch {
-    // ignore
-  }
+  } catch {}
   return url;
 }
 
-function moneyNum(v) {
-  if (v === undefined || v === null || v === '') return null;
-  const s = String(v).replace(/[^0-9.-]/g, '').replace(/,/g, '');
-  const n = Number(s);
-  return Number.isFinite(n) ? n : null;
+const money = (v) => Number(v || 0).toFixed(2);
+
+// ===== Bloque “Tu selección / Your selection” para COMBO =====
+function buildComboSelectionHTML(datos, T) {
+  if (!datos || String(datos.tipo_precio || '').toLowerCase() !== 'combo') return '';
+  // Preferir arreglo `actividades`; si no, partir `combo_actividades`
+  let items = Array.isArray(datos.actividades) ? datos.actividades.slice() : [];
+  if (!items.length && typeof datos.combo_actividades === 'string') {
+    items = datos.combo_actividades.split(',').map(s => s.trim()).filter(Boolean);
+  }
+  if (!items.length) return '';
+
+  const lis = items
+    .map(v => (typeof v === 'string' ? v : (v?.nombre || v?.titulo || v?.name || v?.codigo || '')))
+    .map(txt => String(txt || '').trim())
+    .filter(Boolean)
+    .map(txt => `<li>${txt}</li>`)
+    .join('');
+
+  return `
+    <div style="margin-top:10px; background:#f6f9ff; border-left:6px solid #1b6ef3; padding:10px 14px; border-radius:6px;">
+      <p style="margin:0 0 6px 0; font-weight:700;">${T.selectionTitle}</p>
+      <p style="margin:0 0 6px 0; line-height:1.3;">${T.selectionHint}</p>
+      <ul style="margin:0; padding-left:18px;">${lis}</ul>
+    </div>
+  `.trim();
 }
 
+const LOGO_URL = 'https://static.wixstatic.com/media/f81ced_636e76aeb741411b87c4fa8aa9219410~mv2.png';
+
 /**
- * Construye subject + html para un correo de ACTIVIDADES,
- * usando solo la fila de `reservaciones`.
+ * 🔹 Enriquecer reserva con datos del proveedor desde tabla actividades_proveedor
  *
- * NOTA: Para vista previa se usan URLs directas para logo/imagen
- *       (no CIDs), así se ve bien dentro del iframe HTML.
+ *  - Usamos reservaciones.proveedor
+ *  - Lo buscamos en actividades_proveedor.nombre
+ *  - Tomamos actividades_proveedor.email_contacto y telefono_contacto
+ *  - SIN romper nada si no encuentra / hay error
  */
-function buildPreviewActividades(reservaRaw = {}) {
-  const reserva = reservaRaw || {};
-  const compra  = reserva; // para preview usamos la misma fila como "compra" y "reserva"
+async function enriquecerReservaConProveedor(reserva) {
+  if (!reserva) return reserva;
 
-  // -------- Campos básicos --------
-  const emailLine = compra?.correo_cliente
-    ? `<p style="margin:2px 0;line-height:1.35;"><strong>e-mail:</strong> ${compra.correo_cliente}</p>`
-    : '';
+  // nombre del proveedor tal como se guardó en reservaciones
+  const nombreProv = reserva.proveedor || reserva.proveedor_nombre || null;
+  if (!nombreProv) return reserva;
 
-  const phoneLine = compra?.telefono_cliente
-    ? `<p style="margin:2px 0;line-height:1.35;"><strong>Phone:</strong> ${compra.telefono_cliente}</p>`
-    : '';
+  try {
+    const sqlProv = `
+      SELECT
+        nombre,
+        email_contacto,
+        telefono_contacto
+      FROM actividades_proveedor
+      WHERE nombre = $1
+      LIMIT 1
+    `;
+    const { rows } = await pool.query(sqlProv, [nombreProv]);
+    if (!rows.length) return reserva;
 
-  const totalPago = moneyNum(firstNonNil(compra.total_pago, reserva.total_pago));
-  const totalHTML = totalPago != null
-    ? `<p style="margin:2px 0;line-height:1.35;"><strong>Total:</strong> $${totalPago}</p>`
-    : '';
+    const prov = rows[0];
 
-  // capacidad
-  const capacidadVal = firstNonNil(
-    reserva.capacidad, reserva.cpacidad,
-    compra.capacidad, compra.cpacidad
+    return {
+      ...reserva,
+      proveedor_nombre:   reserva.proveedor_nombre   || prov.nombre || reserva.proveedor,
+      proveedor_email:    reserva.proveedor_email    || prov.email_contacto,
+      proveedor_telefono: reserva.proveedor_telefono || prov.telefono_contacto,
+    };
+  } catch (err) {
+    console.error('⚠ Error buscando proveedor en actividades_proveedor para preview:', err.message);
+    return reserva;
+  }
+}
+
+// ===== Construcción de subject + HTML para ACTIVIDADES (basado en enviarCorreo.js) =====
+function buildPreviewActividadesFromReserva(reserva = {}) {
+  // Mapear fila de reservaciones → estructura "datos" del correo
+  const datos = {
+    idioma:           reserva.idioma,
+    folio:            reserva.folio,
+    nombre_cliente:   reserva.nombre_cliente,
+    correo_cliente:   reserva.correo_cliente,
+    telefono_cliente: reserva.telefono_cliente || reserva.telefono || null,
+
+    nombre_tour:      reserva.nombre_tour || reserva.actividad || reserva.tour || '',
+    imagen:           reserva.imagen || reserva.imagenCorreo || '',
+
+    // PAX / cantidades
+    tipo_precio:      reserva.tipo_precio,
+    capacidad:        reserva.capacidad || reserva.cpacidad,
+    cantidad_paquete: reserva.cantidad_paquete,
+    cantidad_adulto:  reserva.cantidad_adulto,
+    cantidad_nino:    reserva.cantidad_nino,
+    precio_adulto:    reserva.precio_adulto,
+    precio_nino:      reserva.precio_nino,
+    duracion:         reserva.duracion,
+
+    // Notas
+    nota:             reserva.nota || reserva.notas,
+
+    // Totales
+    total_pago:       reserva.total_pago,
+    moneda:           reserva.moneda || 'USD',
+
+    // Combo
+    actividades:       reserva.actividades,
+    combo_actividades: reserva.combo_actividades,
+
+    // Proveedor (ya “enriquecido” si la función anterior llenó algo)
+    proveedor_nombre:   reserva.proveedor_nombre || reserva.proveedor,
+    proveedor_email:    reserva.proveedor_email,
+    proveedor_telefono: reserva.proveedor_telefono
+  };
+
+  const LANG = pickLang(datos);
+  const T    = STR[LANG] || STR.es;
+
+  const imgTourUrl0 = sanitizeUrl(datos.imagen);
+  const imgTourUrl  = imgTourUrl0 ? forceJpgIfWix(imgTourUrl0) : '';
+
+  // ====== Detectar PAX ======
+  const paqueteLabel = (datos.paquete || datos.capacidad || '').toString().trim();
+  const cantPaquete  = Number(datos.cantidad_paquete || 0);
+  const tipoPrecio   = (datos.tipo_precio || '').toString().toLowerCase();
+  const isAdults     = Number(datos.cantidad_adulto) > 0;
+  const isKids       = Number(datos.cantidad_nino)   > 0;
+
+  const isPAX = (
+    tipoPrecio === 'pax' ||
+    (!!paqueteLabel && !isAdults && !isKids) ||
+    cantPaquete > 0
   );
-  const capacidadHTML = capacidadVal
-    ? `<p style="margin:2px 0;line-height:1.35;"><strong>Capacity:</strong> ${capacidadVal}</p>`
+
+  const pricePerPkg  = Number(datos.precio_adulto || 0);
+
+  // ====== Líneas de detalle ======
+  const precioAdultoHTML =
+    isPAX ? '' :
+    (isAdults
+      ? `<p style="margin:2px 0;"><strong>${T.adults}:</strong> ${datos.cantidad_adulto} × $${money(datos.precio_adulto)} ${datos.moneda} ${datos.edad_adulto ? `(${datos.edad_adulto})` : ''}</p>`
+      : '');
+
+  const precioNinoHTML =
+    isPAX ? '' :
+    (isKids
+      ? `<p style="margin:2px 0;"><strong>${T.children}:</strong> ${datos.cantidad_nino} × $${money(datos.precio_nino)} ${datos.moneda} ${datos.edad_nino ? `(${datos.edad_nino})` : ''}</p>`
+      : '');
+
+  const duracionHTML =
+    isPAX ? '' :
+    (datos.duracion ? `<p style="margin:2px 0;"><strong>${T.time}:</strong> ${datos.duracion}</p>` : '');
+
+  const qtyText = cantPaquete
+    ? `${cantPaquete} ${LANG === 'es' ? `paquete${cantPaquete>1?'s':''}` : `package${cantPaquete>1?'s':''}`}`
     : '';
 
-  // cantidad de paquetes + etiqueta
-  const cantPaqueteNum = Number(firstNonNil(
-    reserva.cantidad_paquete, compra.cantidad_paquete, compra.paquetes, compra.cantidad_paquetes
-  ) || 0);
-  const paqueteLabel = firstNonNil(
-    compra.paquete, reserva.paquete, compra.etiqueta, reserva.etiqueta,
-    (capacidadVal && firstNonNil(reserva.duracion, compra.duracion))
-      ? `${capacidadVal} · ${firstNonNil(reserva.duracion, compra.duracion)}`
-      : ''
-  );
-  const paquetesHTML = cantPaqueteNum
-    ? `<p style="margin:2px 0;line-height:1.35;"><strong>Package purchased:</strong> ${cantPaqueteNum} package${cantPaqueteNum > 1 ? 's' : ''}${paqueteLabel ? ` (${paqueteLabel})` : ''}</p>`
-    : (paqueteLabel
-        ? `<p style="margin:2px 0;line-height:1.35;"><strong>Selected package:</strong> ${paqueteLabel}</p>`
-        : '');
+  const pkgPurchasedLine =
+    isPAX && paqueteLabel && qtyText
+      ? `<p style="margin:2px 0;"><strong>${T.packagePurchased}:</strong> ${qtyText} (${paqueteLabel})</p>`
+      : (isPAX && paqueteLabel
+          ? `<p style="margin:2px 0;"><strong>${T.selectedPackage}:</strong> ${paqueteLabel}</p>`
+          : (isPAX && qtyText
+              ? `<p style="margin:2px 0;"><strong>${T.quantity}:</strong> ${qtyText}</p>`
+              : '')
+        );
 
-  // duración
-  const duracionVal = firstNonNil(reserva.duracion, compra.duracion);
-  const duracionHTML = duracionVal
-    ? `<p style="margin:2px 0;line-height:1.35;"><strong>Duration:</strong> ${duracionVal}</p>`
+  const pricePerPkgLine = (isPAX && pricePerPkg)
+    ? `<p style="margin:2px 0;"><strong>${T.pricePerPackage}:</strong> $${money(pricePerPkg)} ${datos.moneda}</p>`
     : '';
 
-  // notas del cliente
-  const notasVal = firstNonNil(reserva.notas, compra.notas, compra.nota, reserva.nota);
-  const notaHTML = (notasVal && String(notasVal).trim() !== '')
-    ? `<p style="margin:2px 0;line-height:1.35;"><strong>Customer note:</strong> ${notasVal}</p>`
-    : '';
+  const paxBlockHTML = isPAX ? `${pkgPurchasedLine}${pricePerPkgLine}` : '';
 
-  // imagen del tour
-  const imgUrlRaw = firstNonNil(
-    compra.imagen, reserva.imagen,
-    compra.imagenCorreo, reserva.imagenCorreo
-  );
-  const imgUrl = imgUrlRaw ? forceJpgIfWix(sanitizeUrl(imgUrlRaw)) : '';
+  const activityLine = isPAX && paqueteLabel
+    ? `${datos.nombre_tour} — ${paqueteLabel}`
+    : `${datos.nombre_tour || ''}`;
 
-  const htmlImagen = imgUrl
-    ? `
-      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin-top:10px;">
+  const comboSelectionHTML = buildComboSelectionHTML(datos, T);
+
+  const provName = (datos.proveedor_nombre || '').toString().trim() || (LANG === 'es' ? 'nuestro proveedor' : 'our partner');
+  const bloqueProveedorHTML = `
+    <div style="background:#f6f9ff;border-left:6px solid #1b6ef3;padding:10px 15px;margin-top:14px;border-radius:6px;">
+      <p style="margin:0; line-height:1.28; text-align:justify;">
+        ${T.providerBlockP1(provName)}
+      </p>
+      <div style="margin-top:10px; line-height:1.22;">
+        <p style="margin:0 0 2px 0;"><strong>${T.provider}:</strong> ${datos.proveedor_nombre || '-'}</p>
+        <p style="margin:0 0 2px 0;"><strong>Email:</strong> ${datos.proveedor_email || '-'}</p>
+        <p style="margin:0;"><strong>${T.phone}:</strong> ${datos.proveedor_telefono || '-'}</p>
+      </div>
+    </div>
+  `.trim();
+
+  const mensajeInner = `
+      <table style="width:100%;margin-bottom:10px;border-collapse:collapse;">
         <tr>
-          <td>
-            <img src="${imgUrl}" width="400" style="display:block;width:100%;height:auto;border-radius:8px;" alt="Tour image" />
-          </td>
+          <td style="text-align:left;"><h2 style="color:green;margin:0;">${T.hero}</h2></td>
+          <td style="text-align:right;"><img src="${LOGO_URL}" alt="Logo" style="height:45px;display:block;" /></td>
         </tr>
-      </table>`
-    : '';
+      </table>
 
-  // proveedor (usamos campos de la misma fila, ya enriquecida con el SELECT extra)
-  const provNombre = firstNonNil(
-    reserva.proveedor_nombre,
-    reserva.proveedor,       // por si solo viene así
-    reserva.provider_name,
-    '—'
-  );
-  const provEmail = firstNonNil(
-    reserva.proveedor_email,
-    reserva.proveedor_correo,
-    '—'
-  );
-  const provPhone = firstNonNil(
-    reserva.proveedor_telefono,
-    reserva.proveedor_phone,
-    '—'
-  );
-  const provAviso = firstNonNil(
-    reserva.proveedor_aviso,
-    'We recommend arriving on time on the day of the activity so that you can receive satisfactory service.'
-  );
+      <div style="margin:0;padding:0;font-family:Arial,Helvetica,sans-serif;line-height:1.4;">
+        <p style="margin:2px 0;"><strong>${T.folio}:</strong> ${datos.folio || ''}</p>
+        <p style="margin:2px 0;"><strong>${T.name}:</strong> ${datos.nombre_cliente || ''}</p>
+        <p style="margin:2px 0;"><strong>${T.email}:</strong> ${datos.correo_cliente || ''}</p>
+        <p style="margin:2px 0;"><strong>${T.phone}:</strong> ${datos.telefono_cliente || '-'}</p>
 
-  const providerBlock = `
-      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin-top:12px;background:#f6f9ff;border-radius:8px;">
-        <tr>
-          <td width="6" style="background:#1b6ef3;border-radius:8px 0 0 8px;font-size:0;line-height:0;">&nbsp;</td>
-          <td style="padding:10px 14px;">
-            <p style="margin:0 0 2px 0;line-height:1.45;"><strong>Service Provider:</strong> ${provNombre}</p>
-            <p style="margin:0 0 2px 0;line-height:1.45;"><strong>Email:</strong> ${
-              provEmail !== '—'
-                ? `<a href="mailto:${provEmail}">${provEmail}</a>`
-                : '—'
-            }</p>
-            <p style="margin:0 0 6px 0;line-height:1.45;"><strong>Phone:</strong> ${provPhone}</p>
-            <p style="margin:0;line-height:1.45;">&#9888; ${provAviso}</p>
-          </td>
-        </tr>
-      </table>`;
+        <p style="margin:2px 0;"><strong>${T.activity}:</strong> ${activityLine}</p>
 
-  // Construimos el HTML completo (sin QR ni CIDs en preview)
+        ${isPAX ? paxBlockHTML : `${precioAdultoHTML}${precioNinoHTML}${duracionHTML}`}
+
+        ${comboSelectionHTML}
+
+        <p style="margin:2px 0;"><strong>${T.total}:</strong> $${money(datos.total_pago)} ${datos.moneda || ''}</p>
+        ${datos.nota && String(datos.nota).trim() !== '' ? `<p style="margin:2px 0;"><strong>${T.customerNote}:</strong> ${datos.nota}</p>` : ''}
+
+        ${imgTourUrl ? `
+          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin-top:10px;">
+            <tr><td>
+              <img src="${imgTourUrl}" width="400" alt="Tour image"
+                   style="display:block;width:100%;height:auto;max-width:100%;border-radius:8px;" />
+            </td></tr>
+          </table>
+        ` : ``}
+      </div>
+
+      ${bloqueProveedorHTML}
+
+      <div style="background-color:#fff3cd;border-left:6px solid #ffa500;padding:8px 12px;margin-top:14px;border-radius:5px;line-height:1.3;">
+        <strong style="color:#b00000;">${T.recommendationsTitle}</strong>
+        <span style="color:#333;">${T.recommendationsBody}</span>
+      </div>
+
+      <p style="margin-top:14px;font-size:14px;color:#555;line-height:1.3;">
+        &#128231; ${T.sentTo}: <a href="mailto:${datos.correo_cliente || ''}" style="color:#1b6ef3;text-decoration:none;">${datos.correo_cliente || ''}</a>
+      </p>
+  `.trim();
+
   const html = `
-    ${EMAIL_CSS}
-    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" class="body-cts">
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
       <tr>
         <td align="center" style="padding:0;margin:0;">
-          <table role="presentation" width="600" cellspacing="0" cellpadding="0" style="width:600px;max-width:600px;border:2px solid #ccc;border-radius:10px;">
-            <tr>
-              <td style="padding:20px;border-radius:10px;">
-                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin:0 0 8px 0;">
-                  <tr>
-                    <td align="left" style="vertical-align:middle;">
-                      <h2 style="color:green;margin:0;">✅ Reservation Confirmation</h2>
-                    </td>
-                    <td align="right" style="vertical-align:middle;">
-                      <img src="${LOGO_URL}" class="logoimg" style="display:block;height:45px;width:auto;border:0;" alt="Logo" />
-                    </td>
-                  </tr>
-                </table>
-
-                <p class="section-title" style="margin:12px 0 6px;">Purchase Information</p>
-                <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
-                  <tr><td style="font-size:14px;color:#222;">
-                    <p style="margin:2px 0;line-height:1.35;"><strong>Folio:</strong> ${_fmt(firstNonNil(compra.folio, reserva.folio))}</p>
-                    <p style="margin:2px 0;line-height:1.35;"><strong>Name:</strong> ${_fmt(firstNonNil(compra.nombre_cliente, reserva.nombre_cliente))}</p>
-                    ${emailLine}
-                    ${phoneLine}
-                    <p style="margin:2px 0;line-height:1.35;"><strong>Activitie:</strong> ${_fmt(firstNonNil(compra.nombre_tour, reserva.nombre_tour))}</p>
-                    ${
-                      firstNonNil(compra.fecha_compra, reserva.fecha_compra)
-                        ? `<p style="margin:2px 0;line-height:1.35;"><strong>Purchase Date:</strong> ${fmtDMY(firstNonNil(compra.fecha_compra, reserva.fecha_compra))}</p>`
-                        : ``
-                    }
-                    ${capacidadHTML}
-                    ${paquetesHTML}
-                    ${duracionHTML}
-                    ${totalHTML}
-                    ${notaHTML}
-                  </td></tr>
-                </table>
-                ${htmlImagen}
-
-                <div class="divider" style="margin:12px 0;"></div>
-
-                <p class="section-title" style="margin:12px 0 6px;">Reservation Information</p>
-                <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
-                  <tr><td style="font-size:14px;color:#222;">
-                    <p style="margin:2px 0;line-height:1.35;"><strong>Reservation Folio:</strong> ${_fmt(reserva.folio_reservacion)}</p>
-                    ${
-                      reserva?.fecha_reservacion
-                        ? `<p style="margin:2px 0;line-height:1.35;"><strong>Date:</strong> ${fmtDMY(reserva.fecha_reservacion)}</p>`
-                        : ``
-                    }
-                    ${
-                      reserva?.hora_reservacion
-                        ? `<p style="margin:2px 0;line-height:1.35;"><strong>Hour:</strong> ${reserva.hora_reservacion}</p>`
-                        : ``
-                    }
-                  </td></tr>
-                </table>
-
-                ${providerBlock}
-
-                <p style="font-size:12px;color:#666;margin-top:12px;">This is an automated message. Please do not reply to this address.</p>
-              </td>
-            </tr>
+          <table role="presentation" width="600" cellspacing="0" cellpadding="0"
+                 style="width:600px;max-width:600px;border:2px solid #ccc;border-radius:10px;">
+            <tr><td style="padding:24px 26px 32px;border-radius:10px;">
+              ${mensajeInner}
+            </td></tr>
           </table>
         </td>
       </tr>
-    </table>`;
+    </table>
+  `.trim();
 
-  const subject = `Reservation Confirmation – ${
-    _fmt(firstNonNil(compra.nombre_tour, reserva.nombre_tour))
-  } – ${
-    _fmt(reserva.folio_reservacion)
-  }`;
+  const subject = (STR[LANG] || STR.es).subject(datos.folio || '');
 
   return { subject, html };
 }
@@ -295,7 +369,7 @@ export async function previewCorreoReservacion(req, res) {
   try {
     const folio =
       (req.query && req.query.folio) ||
-      (req.body && req.body.folio);
+      (req.body  && req.body.folio);
 
     if (!folio) {
       return res.status(400).json({
@@ -310,7 +384,6 @@ export async function previewCorreoReservacion(req, res) {
       WHERE folio = $1
       LIMIT 1
     `;
-
     const { rows } = await pool.query(sql, [folio]);
 
     if (!rows.length) {
@@ -320,57 +393,24 @@ export async function previewCorreoReservacion(req, res) {
       });
     }
 
-    const reserva = rows[0];
+    let reserva = rows[0];
+
+    // 🔹 Enriquecemos la reserva con datos del proveedor (tabla actividades_proveedor)
+    reserva = await enriquecerReservaConProveedor(reserva);
+
     const tipoServicio = (reserva.tipo_servicio || '').toLowerCase();
-
-    // ===== NUEVO: enriquecer datos de proveedor desde actividades_proveedor =====
-    if (
-      tipoServicio === 'actividad'   ||
-      tipoServicio === 'actividades' ||
-      tipoServicio === 'tour'        ||
-      tipoServicio === 'tours'
-    ) {
-      // nombre del proveedor tal como viene en reservaciones
-      const nombreProveedor = firstNonNil(
-        reserva.proveedor,        // columna en reservaciones
-        reserva.proveedor_nombre, // por si ya existe
-        reserva.provider_name
-      );
-
-      if (nombreProveedor) {
-        try {
-          const sqlProv = `
-            SELECT email_contacto, telefono_contacto
-            FROM actividades_proveedor
-            WHERE nombre = $1
-            LIMIT 1
-          `;
-          const { rows: provRows } = await pool.query(sqlProv, [nombreProveedor]);
-          if (provRows.length) {
-            const prov = provRows[0];
-            reserva.proveedor_nombre   = nombreProveedor;
-            reserva.proveedor_email    = prov.email_contacto || null;
-            reserva.proveedor_telefono = prov.telefono_contacto || null;
-          }
-        } catch (e) {
-          console.error('❌ Error consultando actividades_proveedor en preview:', e);
-          // Si falla, seguimos sin romper la vista previa
-        }
-      }
-    }
 
     let subject = null;
     let html    = null;
 
-    // Por ahora solo construimos vista previa "bonita" para Actividades.
-    // (Luego podemos ir agregando transporte, tours combo, etc.)
+    // Por ahora, preview "bonita" solo para Actividades / Tours.
     if (
       tipoServicio === 'actividad'   ||
       tipoServicio === 'actividades' ||
       tipoServicio === 'tour'        ||
       tipoServicio === 'tours'
     ) {
-      const built = buildPreviewActividades(reserva);
+      const built = buildPreviewActividadesFromReserva(reserva);
       subject = built.subject;
       html    = built.html;
     }
@@ -380,8 +420,6 @@ export async function previewCorreoReservacion(req, res) {
       folio,
       tipo_servicio: reserva.tipo_servicio || null,
       idioma: reserva.idioma || null,
-      // opcional: para tu encabezado de "Servicio" en el iframe
-      servicio: reserva.nombre_tour || null,
       reserva,
       subject,
       html,
