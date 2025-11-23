@@ -3,16 +3,19 @@ import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 
-// Handlers
+// Handlers tipo de cambio
 import { obtenerTipoCambio } from './obtenerTipoCambio.js';
 import { guardarTipoCambio } from './guardarTipoCambio.js';
 
-// 🔹 NUEVO: handlers para correos de reservación
+// 🔹 Handlers para correos de reservación (errores)
 import {
   contarCorreosReservacionError,
   listarCorreosReservacionError,
   actualizarCorreoCliente,
 } from './correosReservacion.js';
+
+// 🔹 NUEVO: handler para PREVIEW de correo de reservación
+import { previewCorreoReservacion } from './correosReservacionPreview.js';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -26,18 +29,23 @@ app.get('/', (_req, res) => {
   res.json({ ok: true, service: 'api-parametros', msg: 'API Parámetros OK' });
 });
 
-// Tipo de cambio
+// ===== Tipo de cambio =====
 app.get('/api/tipo-cambio', obtenerTipoCambio);
 app.post('/api/tipo-cambio', guardarTipoCambio);
 
-// 🔹 Correos reservación – contador para badge
+// ===== Correos reservación – contador para badge =====
 app.get('/api/correos-reservacion-error', contarCorreosReservacionError);
 
-// 🔹 Correos reservación – lista detallada para iframeMailnosend
+// ===== Correos reservación – lista detallada para iframeMailnosend =====
 app.get('/api/correos-reservacion-error/lista', listarCorreosReservacionError);
 
-// NUEVA ruta para editar correo
+// ===== Correos reservación – actualizar correo_cliente =====
 app.post('/api/correos-reservacion-error/actualizar-correo', actualizarCorreoCliente);
+
+// 🔹 NUEVO: PREVIEW de correo de reservación (NO envía, solo datos crudos)
+// Soporta GET ?folio=XXXX y POST { folio }
+app.get('/api/correos-reservacion-error/preview', previewCorreoReservacion);
+app.post('/api/correos-reservacion-error/preview', previewCorreoReservacion);
 
 app.use((req, res) => {
   res.status(404).json({ error: 'Ruta no encontrada' });
