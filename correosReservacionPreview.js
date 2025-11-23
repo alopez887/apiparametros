@@ -96,12 +96,12 @@ function sanitizeUrl(u = '') {
     return '';
   }
 }
-function forceJpgIfWix(url = '') {
+function forceJpgIfWix(url='') {
   try {
     const u = new URL(url);
     if (/wixstatic\.com$/i.test(u.hostname)) {
-      if (!u.searchParams.has('format')) u.searchParams.set('format', 'jpg');
-      if (!u.searchParams.has('width'))  u.searchParams.set('width', '1200');
+      if (!u.searchParams.has('format')) u.searchParams.set('format','jpg');
+      if (!u.searchParams.has('width'))  u.searchParams.set('width','1200');
       return u.toString();
     }
   } catch {}
@@ -110,9 +110,10 @@ function forceJpgIfWix(url = '') {
 
 const money = (v) => Number(v || 0).toFixed(2);
 
-// ===== Bloque “Tu selección / Your selection” para COMBO (igual que enviarCorreo.js) =====
+// ===== Bloque “Tu selección / Your selection” para COMBO =====
 function buildComboSelectionHTML(datos, T) {
   if (!datos || String(datos.tipo_precio || '').toLowerCase() !== 'combo') return '';
+  // Preferir arreglo `actividades`; si no, partir `combo_actividades`
   let items = Array.isArray(datos.actividades) ? datos.actividades.slice() : [];
   if (!items.length && typeof datos.combo_actividades === 'string') {
     items = datos.combo_actividades.split(',').map(s => s.trim()).filter(Boolean);
@@ -135,10 +136,51 @@ function buildComboSelectionHTML(datos, T) {
   `.trim();
 }
 
-// ===== Construcción de subject + HTML para ACTIVIDADES (basado en enviarCorreo.js) =====
-
 const LOGO_URL = 'https://static.wixstatic.com/media/f81ced_636e76aeb741411b87c4fa8aa9219410~mv2.png';
 
+/**
+ * 🔹 Enriquecer reserva con datos del proveedor desde tabla actividades_proveedor
+ *
+ *  - Usamos reservaciones.proveedor
+ *  - Lo buscamos en actividades_proveedor.nombre
+ *  - Tomamos actividades_proveedor.email_contacto y telefono_contacto
+ *  - SIN romper nada si no encuentra / hay error
+ */
+async function enriquecerReservaConProveedor(reserva) {
+  if (!reserva) return reserva;
+
+  // nombre del proveedor tal como se guardó en reservaciones
+  const nombreProv = reserva.proveedor || reserva.proveedor_nombre || null;
+  if (!nombreProv) return reserva;
+
+  try {
+    const sqlProv = `
+      SELECT
+        nombre,
+        email_contacto,
+        telefono_contacto
+      FROM actividades_proveedor
+      WHERE nombre = $1
+      LIMIT 1
+    `;
+    const { rows } = await pool.query(sqlProv, [nombreProv]);
+    if (!rows.length) return reserva;
+
+    const prov = rows[0];
+
+    return {
+      ...reserva,
+      proveedor_nombre:   reserva.proveedor_nombre   || prov.nombre || reserva.proveedor,
+      proveedor_email:    reserva.proveedor_email    || prov.email_contacto,
+      proveedor_telefono: reserva.proveedor_telefono || prov.telefono_contacto,
+    };
+  } catch (err) {
+    console.error('⚠ Error buscando proveedor en actividades_proveedor para preview:', err.message);
+    return reserva;
+  }
+}
+
+// ===== Construcción de subject + HTML para ACTIVIDADES (basado en enviarCorreo.js) =====
 function buildPreviewActividadesFromReserva(reserva = {}) {
   // Mapear fila de reservaciones → estructura "datos" del correo
   const datos = {
@@ -169,11 +211,11 @@ function buildPreviewActividadesFromReserva(reserva = {}) {
     moneda:           reserva.moneda || 'USD',
 
     // Combo
-    actividades:      reserva.actividades,       // si lo guardas como array/json
-    combo_actividades:reserva.combo_actividades, // si lo guardas como string
+    actividades:       reserva.actividades,
+    combo_actividades: reserva.combo_actividades,
 
-    // Proveedor (lo que haya en la fila)
-    proveedor_nombre:   reserva.proveedor_nombre,
+    // Proveedor (ya “enriquecido” si la función anterior llenó algo)
+    proveedor_nombre:   reserva.proveedor_nombre || reserva.proveedor,
     proveedor_email:    reserva.proveedor_email,
     proveedor_telefono: reserva.proveedor_telefono
   };
@@ -351,7 +393,11 @@ export async function previewCorreoReservacion(req, res) {
       });
     }
 
-    const reserva = rows[0];
+    let reserva = rows[0];
+
+    // 🔹 Enriquecemos la reserva con datos del proveedor (tabla actividades_proveedor)
+    reserva = await enriquecerReservaConProveedor(reserva);
+
     const tipoServicio = (reserva.tipo_servicio || '').toLowerCase();
 
     let subject = null;
