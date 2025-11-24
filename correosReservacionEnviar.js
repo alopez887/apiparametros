@@ -1,9 +1,7 @@
 // correosReservacionEnviar.js
 import pool from './conexion.js';
-import {
-  buildPreviewActividadesFromReserva,
-  enriquecerReservaConProveedor,
-} from './correosReservacionPreview.js';
+import { buildPreviewActividadesFromReserva } from './correoActividadesPreview.js';
+import { enriquecerReservaConProveedor } from './correosReservacionPreview.js';
 
 const GAS_URL        = process.env.GAS_URL;        // WebApp GAS que envía los correos
 const GAS_TOKEN      = process.env.GAS_TOKEN;      // Token secreto que valida la petición
