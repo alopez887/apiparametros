@@ -141,15 +141,14 @@ const LOGO_URL = 'https://static.wixstatic.com/media/f81ced_636e76aeb741411b87c4
 /**
  * 🔹 Enriquecer reserva con datos del proveedor desde tabla actividades_proveedor
  *
- *  - Usamos reservaciones.proveedor
- *  - Lo buscamos en actividades_proveedor.nombre
+ *  - Usamos reservaciones.proveedor / proveedor_nombre
+ *  - Lo buscamos en actividades_proveedor.nombre (case-insensitive, trim)
  *  - Tomamos actividades_proveedor.email_contacto y telefono_contacto
  *  - SIN romper nada si no encuentra / hay error
  */
 async function enriquecerReservaConProveedor(reserva) {
   if (!reserva) return reserva;
 
-  // nombre del proveedor tal como se guardó en reservaciones
   const nombreProv = reserva.proveedor || reserva.proveedor_nombre || null;
   if (!nombreProv) return reserva;
 
@@ -160,7 +159,7 @@ async function enriquecerReservaConProveedor(reserva) {
         email_contacto,
         telefono_contacto
       FROM actividades_proveedor
-      WHERE nombre = $1
+      WHERE TRIM(LOWER(nombre)) = TRIM(LOWER($1))
       LIMIT 1
     `;
     const { rows } = await pool.query(sqlProv, [nombreProv]);
@@ -269,8 +268,7 @@ function buildPreviewActividadesFromReserva(reserva = {}) {
           ? `<p style="margin:2px 0;"><strong>${T.selectedPackage}:</strong> ${paqueteLabel}</p>`
           : (isPAX && qtyText
               ? `<p style="margin:2px 0;"><strong>${T.quantity}:</strong> ${qtyText}</p>`
-              : '')
-        );
+              : ''));
 
   const pricePerPkgLine = (isPAX && pricePerPkg)
     ? `<p style="margin:2px 0;"><strong>${T.pricePerPackage}:</strong> $${money(pricePerPkg)} ${datos.moneda}</p>`
