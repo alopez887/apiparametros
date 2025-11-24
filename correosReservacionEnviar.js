@@ -88,20 +88,22 @@ export async function reenviarCorreoReservacion(req, res) {
     }
 
     // 4) Llamar a GAS para enviar el correo
+    // 👇 OJO: NO mandamos `folio` para no activar la idempotencia del GAS.
     const payloadGAS = {
       token:        GAS_TOKEN,
-      tipo:         'reservacion',          // ajusta si tu GAS espera otro tipo
-      folio:        reserva.folio,
-      tipoServicio: reserva.tipo_servicio,  // 'actividad' | 'tour' | ...
+      tipo:         'reservacion',        // dejamos el mismo tipo clásico
+      // folio:     <<< NO lo mandamos a GAS en el reenvío
+      folioCorreo:  reserva.folio,        // solo para referencia si luego quieres verlo en logs del GAS
+      tipoServicio: reserva.tipo_servicio,
       idioma:       reserva.idioma || 'es',
       to:           emailTo,
       subject,
       html,
-      // Aquí podrías agregar más campos si tu WebApp GAS los usa
+      ts:           Date.now(),           // por si activas ENFORCE_TS_SEC en el futuro
     };
 
     console.log('[REENVIO] Enviando correo a GAS →', GAS_URL, {
-      folio: payloadGAS.folio,
+      folio: reserva.folio,
       to:    payloadGAS.to,
       tipo:  payloadGAS.tipo,
       idioma:payloadGAS.idioma,
@@ -135,6 +137,8 @@ export async function reenviarCorreoReservacion(req, res) {
     } catch (_) {
       gasJson = {};
     }
+
+    console.log('[REENVIO] Respuesta GAS:', gasRes.status, gasJson);
 
     if (!gasRes.ok || gasJson.ok === false) {
       const msg = gasJson.error || gasJson.message || `HTTP ${gasRes.status}`;
