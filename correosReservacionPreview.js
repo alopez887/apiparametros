@@ -7,7 +7,7 @@ import { buildPreviewActividadesFromReserva } from './correoActividadesPreview.j
  * Lo separamos para reuso en preview + envío.
  */
 export async function enriquecerReservaConProveedor(reserva) {
-  if (!reserva || !reserva.proveedor_codigo) return reserva;
+  if (!reserva || !reserva.proveedor) return reserva;
   try {
     const { rows } = await pool.query(
       `
@@ -20,7 +20,7 @@ export async function enriquecerReservaConProveedor(reserva) {
       WHERE codigo = $1
       LIMIT 1
       `,
-      [reserva.proveedor_codigo]
+      [reserva.proveedor]
     );
     if (rows && rows.length > 0) {
       const prov = rows[0];
