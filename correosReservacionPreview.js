@@ -5,7 +5,7 @@ import { buildPreviewTransporteFromReserva } from './correoTransportePreview.js'
 
 // ... enriquecerReservaConProveedor se queda IGUAL (solo actividades) ...
 
-export async function previewCorreoReservacion(req, res) {
+export async function enriquecerReservaConProveedor(reserva) {
   try {
     const folio =
       req.method === 'GET'
