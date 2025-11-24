@@ -1,11 +1,72 @@
 // correosReservacionPreview.js
 import pool from './conexion.js';
 import { buildPreviewActividadesFromReserva } from './correoActividadesPreview.js';
-import { buildPreviewTransporteFromReserva } from './correoTransportePreview.js'; // 🔹 NUEVO
+import { buildPreviewTransporteFromReserva } from './correoTransportePreview.js';
 
-// ... enriquecerReservaConProveedor se queda IGUAL (solo actividades) ...
-
+/**
+ * Enriquecer reserva con datos del proveedor (si existe).
+ * Usa la columna `proveedor` de la tabla `reservaciones` como NOMBRE,
+ * y busca en la tabla `actividades_proveedores.nombre`.
+ */
 export async function enriquecerReservaConProveedor(reserva) {
+  if (!reserva) return reserva;
+
+  // Si ya trae nombre + (email o teléfono) de proveedor, no tocamos nada
+  if (
+    reserva.proveedor_nombre &&
+    (reserva.proveedor_email || reserva.proveedor_telefono)
+  ) {
+    return reserva;
+  }
+
+  const nombreProv = (reserva.proveedor || '').trim();
+  if (!nombreProv) {
+    return reserva;
+  }
+
+  try {
+    const { rows } = await pool.query(
+      `
+      SELECT
+        nombre             AS proveedor_nombre,
+        email_contacto     AS proveedor_email,
+        telefono_contacto  AS proveedor_telefono
+      FROM actividades_proveedores
+      WHERE nombre = $1
+      LIMIT 1
+      `,
+      [nombreProv]
+    );
+
+    if (rows && rows.length > 0) {
+      const prov = rows[0];
+      return {
+        ...reserva,
+        proveedor_nombre:   prov.proveedor_nombre || nombreProv,
+        proveedor_email:    prov.proveedor_email || '',
+        proveedor_telefono: prov.proveedor_telefono || '',
+      };
+    }
+  } catch (err) {
+    console.warn('⚠️ No se pudo enriquecer reserva con proveedor:', err?.message);
+  }
+
+  // Si no se encontró en la tabla, al menos aseguramos proveedor_nombre
+  if (!reserva.proveedor_nombre && nombreProv) {
+    return {
+      ...reserva,
+      proveedor_nombre: nombreProv,
+    };
+  }
+
+  return reserva;
+}
+
+// ============================================================================
+// Handler HTTP: previewCorreoReservacion
+// ============================================================================
+
+export async function previewCorreoReservacion(req, res) {
   try {
     const folio =
       req.method === 'GET'
@@ -13,7 +74,10 @@ export async function enriquecerReservaConProveedor(reserva) {
         : (req.body.folio || '').trim();
 
     if (!folio) {
-      return res.status(400).json({ ok: false, error: 'Falta parámetro folio' });
+      return res.status(400).json({
+        ok: false,
+        error: 'Falta parámetro folio',
+      });
     }
 
     const { rows } = await pool.query(
@@ -35,25 +99,29 @@ export async function enriquecerReservaConProveedor(reserva) {
     }
 
     let reserva = rows[0];
-
-    // 🔹 Enriquecer SOLO para actividades (proveedor, etc.)
-    reserva = await enriquecerReservaConProveedor(reserva);
-
-    const tipoServicio = (reserva.tipo_servicio || '').toLowerCase();
+    const tipoServicio = (reserva.tipo_servicio || '').toLowerCase().trim();
 
     let subject = null;
     let html    = null;
 
+    // ACTIVIDADES
     if (tipoServicio === 'actividad' || tipoServicio === 'actividades') {
-      const built = buildPreviewActividadesFromReserva(reserva);
+      // Enriquecer SOLO actividades con proveedor
+      reserva = await enriquecerReservaConProveedor(reserva);
+      const built = buildPreviewActividadesFromReserva(reserva); // es síncrona
       subject = built.subject;
       html    = built.html;
-
-    } else if (tipoServicio === 'transportacion' || tipoServicio === 'transporte') {
-      // 🔹 PREVIEW TRANSPORTE con QR generado desde token_qr
-      const built = await buildPreviewTransporteFromReserva(reserva);
+    }
+    // TRANSPORTE
+    else if (tipoServicio === 'transportacion' || tipoServicio === 'transporte') {
+      const built = await buildPreviewTransporteFromReserva(reserva); // esta sí es async
       subject = built.subject;
       html    = built.html;
+    }
+    // Otros servicios (por ahora sin contenido bonito)
+    else {
+      subject = null;
+      html    = null;
     }
 
     return res.json({
