@@ -142,7 +142,7 @@ const LOGO_URL = 'https://static.wixstatic.com/media/f81ced_636e76aeb741411b87c4
  * 🔹 Enriquecer reserva con datos del proveedor desde tabla actividades_proveedor
  *
  *  - Usamos reservaciones.proveedor / proveedor_nombre
- *  - Lo buscamos en actividades_proveedor.nombre (case-insensitive, trim)
+ *  - Lo buscamos en actividades_proveedor.nombre (case-insensitive, trim, ILIKE)
  *  - Tomamos actividades_proveedor.email_contacto y telefono_contacto
  *  - SIN romper nada si no encuentra / hay error
  */
@@ -153,6 +153,8 @@ async function enriquecerReservaConProveedor(reserva) {
   if (!nombreProv) return reserva;
 
   try {
+    console.log('[PREVIEW] Buscando proveedor para folio', reserva.folio, '→', nombreProv);
+
     const sqlProv = `
       SELECT
         nombre,
@@ -160,19 +162,37 @@ async function enriquecerReservaConProveedor(reserva) {
         telefono_contacto
       FROM actividades_proveedor
       WHERE TRIM(LOWER(nombre)) = TRIM(LOWER($1))
+         OR nombre ILIKE $2
       LIMIT 1
     `;
-    const { rows } = await pool.query(sqlProv, [nombreProv]);
-    if (!rows.length) return reserva;
+    const paramExact = nombreProv;
+    const paramLike  = `%${nombreProv}%`;
+
+    const { rows } = await pool.query(sqlProv, [paramExact, paramLike]);
+
+    if (!rows.length) {
+      console.warn('[PREVIEW] No se encontró proveedor en actividades_proveedor para:', nombreProv);
+      return reserva;
+    }
 
     const prov = rows[0];
+    console.log('[PREVIEW] Proveedor encontrado:', prov);
 
-    return {
+    const enriquecida = {
       ...reserva,
       proveedor_nombre:   reserva.proveedor_nombre   || prov.nombre || reserva.proveedor,
       proveedor_email:    reserva.proveedor_email    || prov.email_contacto,
       proveedor_telefono: reserva.proveedor_telefono || prov.telefono_contacto,
     };
+
+    console.log('[PREVIEW] Reserva enriquecida proveedor:', {
+      folio: enriquecida.folio,
+      proveedor_nombre:   enriquecida.proveedor_nombre,
+      proveedor_email:    enriquecida.proveedor_email,
+      proveedor_telefono: enriquecida.proveedor_telefono,
+    });
+
+    return enriquecida;
   } catch (err) {
     console.error('⚠ Error buscando proveedor en actividades_proveedor para preview:', err.message);
     return reserva;
@@ -331,7 +351,7 @@ function buildPreviewActividadesFromReserva(reserva = {}) {
 
       ${bloqueProveedorHTML}
 
-      <div style="background-color:#fff3cd;border-left:6px solid #ffa500;padding:8px 12px;margin-top:14px;border-radius:5px;line-height:1.3;">
+      <div style="background-color:#fff3cd;border-left:6px solid #ffa500;padding:8px 12px;margin-top:14px;border-radius:5px;line-height:1.3%;">
         <strong style="color:#b00000;">${T.recommendationsTitle}</strong>
         <span style="color:#333;">${T.recommendationsBody}</span>
       </div>
@@ -395,6 +415,14 @@ export async function previewCorreoReservacion(req, res) {
 
     // 🔹 Enriquecemos la reserva con datos del proveedor (tabla actividades_proveedor)
     reserva = await enriquecerReservaConProveedor(reserva);
+
+    console.log('[PREVIEW] Reserva final usada para build:', {
+      folio: reserva.folio,
+      proveedor: reserva.proveedor,
+      proveedor_nombre: reserva.proveedor_nombre,
+      proveedor_email: reserva.proveedor_email,
+      proveedor_telefono: reserva.proveedor_telefono,
+    });
 
     const tipoServicio = (reserva.tipo_servicio || '').toLowerCase();
 
