@@ -46,6 +46,26 @@ function formatCurrency(monto, moneda) {
   return `$${val} ${moneda === 'MXN' ? 'MXN' : 'USD'}`;
 }
 
+// Normalizar fecha a YYYY-MM-DD (como en el correo real)
+function formatFechaYMD(value) {
+  if (!value) return '';
+  const s = String(value).trim();
+
+  // Si ya viene como '2025-11-24'
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+    return s;
+  }
+
+  // Si viene como Date o como 'Mon Nov 24 2025 00:00:00 GMT+0000 ...'
+  const d = (value instanceof Date) ? value : new Date(s);
+  if (!Number.isNaN(d.getTime())) {
+    return d.toISOString().slice(0, 10); // 'YYYY-MM-DD'
+  }
+
+  // Último recurso, regresamos el string original
+  return s;
+}
+
 // ---------- i18n idéntico a correosTransporte.js ----------
 function pickLang(idioma){
   const es = String(idioma||'').toLowerCase().startsWith('es');
@@ -141,6 +161,15 @@ export async function buildPreviewTransporteFromReserva(reserva) {
   const tripType    = (L.tripType[tripTypeRaw] || tripTypeRaw);
   const nota        = reserva.nota || reserva.comentarios || '';
 
+  // Pasajeros: intentamos varias columnas posibles
+  const pasajeros =
+    reserva.cantidad_pasajeros ||
+    reserva.pasajeros ||
+    reserva.cant_pasajeros ||
+    reserva.num_pasajeros ||
+    reserva.cantidad_pax ||
+    '';
+
   // Nombre del transporte según idioma (mismas columnas que usas en envío)
   const catEN = String((reserva.categoria ?? reserva.nombre_en) || '').trim();
   const catES = String((reserva.categoria_es ?? reserva.nombre_es) || '').trim();
@@ -188,7 +217,7 @@ export async function buildPreviewTransporteFromReserva(reserva) {
             ${p(L.labels.name,  reserva.nombre_cliente)}
             ${p(L.labels.email, reserva.correo_cliente)}
             ${p(L.labels.phone, reserva.telefono_cliente)}
-            ${p(L.labels.passengers, reserva.cantidad_pasajeros || reserva.pasajeros)}
+            ${pasajeros ? p(L.labels.passengers, pasajeros) : ''}
             ${nota && nota.trim() !== '' ? p(L.labels.note, nota) : ''}
           </td>
           <td style="vertical-align:top;width:48%;">
@@ -209,14 +238,14 @@ export async function buildPreviewTransporteFromReserva(reserva) {
         <tr>
           <td style="vertical-align:top;padding-right:15px;width:48%;">
             ${p(L.labels.hotel,   reserva.hotel_llegada)}
-            ${p(L.labels.date,    reserva.fecha_llegada)}
+            ${p(L.labels.date,    formatFechaYMD(reserva.fecha_llegada))}
             ${p(L.labels.time,    formatoHora12(reserva.hora_llegada))}
             ${p(L.labels.airline, reserva.aerolinea_llegada)}
             ${p(L.labels.flight,  reserva.vuelo_llegada)}
           </td>
           <td style="vertical-align:top;width:48%;">
             ${p(L.labels.hotel,   reserva.hotel_salida)}
-            ${p(L.labels.date,    reserva.fecha_salida)}
+            ${p(L.labels.date,    formatFechaYMD(reserva.fecha_salida))}
             ${p(L.labels.time,    formatoHora12(reserva.hora_salida))}
             ${p(L.labels.airline, reserva.aerolinea_salida)}
             ${p(L.labels.flight,  reserva.vuelo_salida)}
@@ -232,14 +261,14 @@ export async function buildPreviewTransporteFromReserva(reserva) {
       ${p(L.labels.phone, reserva.telefono_cliente)}
       ${!esShuttle ? p(L.labels.transport, categoria_i18n) : ''}
       ${!esShuttle ? p(L.labels.capacity,  reserva.capacidad) : ''}
-      ${(reserva.cantidad_pasajeros || reserva.pasajeros) ? p(L.labels.passengers, (reserva.cantidad_pasajeros || reserva.pasajeros)) : ''}
+      ${pasajeros ? p(L.labels.passengers, pasajeros) : ''}
       ${reserva.hotel_llegada   ? p(L.labels.hotel,   reserva.hotel_llegada)   : ''}
-      ${reserva.fecha_llegada   ? p(L.labels.date,    reserva.fecha_llegada)   : ''}
+      ${reserva.fecha_llegada   ? p(L.labels.date,    formatFechaYMD(reserva.fecha_llegada))   : ''}
       ${reserva.hora_llegada    ? p(L.labels.time,    formatoHora12(reserva.hora_llegada)) : ''}
       ${reserva.aerolinea_llegada ? p(L.labels.airline, reserva.aerolinea_llegada) : ''}
       ${reserva.vuelo_llegada   ? p(L.labels.flight,  reserva.vuelo_llegada)   : ''}
       ${reserva.hotel_salida    ? p(L.labels.hotel,   reserva.hotel_salida)    : ''}
-      ${reserva.fecha_salida    ? p(L.labels.date,    reserva.fecha_salida)    : ''}
+      ${reserva.fecha_salida    ? p(L.labels.date,    formatFechaYMD(reserva.fecha_salida))    : ''}
       ${reserva.hora_salida     ? p(L.labels.time,    formatoHora12(reserva.hora_salida)) : ''}
       ${reserva.aerolinea_salida ? p(L.labels.airline, reserva.aerolinea_salida) : ''}
       ${reserva.vuelo_salida    ? p(L.labels.flight,  reserva.vuelo_salida)    : ''}
