@@ -139,11 +139,11 @@ function buildComboSelectionHTML(datos, T) {
 const LOGO_URL = 'https://static.wixstatic.com/media/f81ced_636e76aeb741411b87c4fa8aa9219410~mv2.png';
 
 /**
- * 🔹 Enriquecer reserva con datos del proveedor desde tabla actividades_proveedor
+ * 🔹 Enriquecer reserva con datos del proveedor desde tabla actividades_proveedores
  *
  *  - Usamos reservaciones.proveedor / proveedor_nombre
- *  - Lo buscamos en actividades_proveedor.nombre (case-insensitive, trim, ILIKE)
- *  - Tomamos actividades_proveedor.email_contacto y telefono_contacto
+ *  - Lo buscamos en actividades_proveedores.nombre (case-insensitive, trim, ILIKE)
+ *  - Tomamos actividades_proveedores.email_contacto y telefono_contacto
  *  - SIN romper nada si no encuentra / hay error
  */
 async function enriquecerReservaConProveedor(reserva) {
@@ -160,7 +160,7 @@ async function enriquecerReservaConProveedor(reserva) {
         nombre,
         email_contacto,
         telefono_contacto
-      FROM actividades_proveedor
+      FROM actividades_proveedores
       WHERE TRIM(LOWER(nombre)) = TRIM(LOWER($1))
          OR nombre ILIKE $2
       LIMIT 1
@@ -171,7 +171,7 @@ async function enriquecerReservaConProveedor(reserva) {
     const { rows } = await pool.query(sqlProv, [paramExact, paramLike]);
 
     if (!rows.length) {
-      console.warn('[PREVIEW] No se encontró proveedor en actividades_proveedor para:', nombreProv);
+      console.warn('[PREVIEW] No se encontró proveedor en actividades_proveedores para:', nombreProv);
       return reserva;
     }
 
@@ -194,7 +194,7 @@ async function enriquecerReservaConProveedor(reserva) {
 
     return enriquecida;
   } catch (err) {
-    console.error('⚠ Error buscando proveedor en actividades_proveedor para preview:', err.message);
+    console.error('⚠ Error buscando proveedor en actividades_proveedores para preview:', err.message);
     return reserva;
   }
 }
@@ -413,7 +413,7 @@ export async function previewCorreoReservacion(req, res) {
 
     let reserva = rows[0];
 
-    // 🔹 Enriquecemos la reserva con datos del proveedor (tabla actividades_proveedor)
+    // 🔹 Enriquecemos la reserva con datos del proveedor (tabla actividades_proveedores)
     reserva = await enriquecerReservaConProveedor(reserva);
 
     console.log('[PREVIEW] Reserva final usada para build:', {
