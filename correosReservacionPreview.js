@@ -351,7 +351,7 @@ function buildPreviewActividadesFromReserva(reserva = {}) {
 
       ${bloqueProveedorHTML}
 
-      <div style="background-color:#fff3cd;border-left:6px solid #ffa500;padding:8px 12px;margin-top:14px;border-radius:5px;line-height:1.3%;">
+      <div style="background-color:#fff3cd;border-left:6px solid #ffa500;padding:8px 12px;margin-top:14px;border-radius:5px;line-height:1.3;">
         <strong style="color:#b00000;">${T.recommendationsTitle}</strong>
         <span style="color:#333;">${T.recommendationsBody}</span>
       </div>
