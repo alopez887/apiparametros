@@ -1,6 +1,7 @@
 // correosReservacionPreview.js
 import pool from './conexion.js';
 import { buildPreviewActividadesFromReserva } from './correoActividadesPreview.js';
+import { buildPreviewTransporteFromReserva } from './correoTransportePreview.js';
 
 /**
  * Enriquecer reserva con datos del proveedor (si existe).
@@ -18,7 +19,6 @@ export async function enriquecerReservaConProveedor(reserva) {
     return reserva;
   }
 
-  // Aquí usamos EXACTAMENTE la columna que tienes en `reservaciones`
   const nombreProv = (reserva.proveedor || '').trim();
   if (!nombreProv) {
     return reserva;
@@ -28,8 +28,8 @@ export async function enriquecerReservaConProveedor(reserva) {
     const { rows } = await pool.query(
       `
       SELECT
-        nombre           AS proveedor_nombre,
-        email_contacto   AS proveedor_email,
+        nombre            AS proveedor_nombre,
+        email_contacto    AS proveedor_email,
         telefono_contacto AS proveedor_telefono
       FROM actividades_proveedores
       WHERE nombre = $1
@@ -51,7 +51,6 @@ export async function enriquecerReservaConProveedor(reserva) {
     console.warn('⚠️ No se pudo enriquecer reserva con proveedor:', err?.message);
   }
 
-  // Si no se encontró en la tabla, al menos aseguramos proveedor_nombre
   if (!reserva.proveedor_nombre && nombreProv) {
     return {
       ...reserva,
@@ -100,18 +99,24 @@ export async function previewCorreoReservacion(req, res) {
 
     let reserva = rows[0];
 
-    // 🔹 Enriquecer con datos del proveedor usando `reservaciones.proveedor`
-    //     -> actividades_proveedores.nombre
+    // Enriquecer con datos del proveedor (solo aplica a actividades)
     reserva = await enriquecerReservaConProveedor(reserva);
 
-    const tipoServicio = (reserva.tipo_servicio || '').toLowerCase();
+    const tipoServicioRaw = reserva.tipo_servicio || '';
+    const tipoServicio    = tipoServicioRaw.trim().toLowerCase();
 
     let subject = null;
     let html    = null;
 
-    // ACTIVIDADES -> usamos el layout de correoActividadesPreview.js
+    // ✅ ACTIVIDADES
     if (tipoServicio === 'actividad' || tipoServicio === 'actividades') {
       const built = buildPreviewActividadesFromReserva(reserva);
+      subject = built.subject;
+      html    = built.html;
+    }
+    // ✅ TRANSPORTE (tipo_servicio = "Transportacion" en BD)
+    else if (tipoServicio === 'transportacion') {
+      const built = buildPreviewTransporteFromReserva(reserva);
       subject = built.subject;
       html    = built.html;
     }
