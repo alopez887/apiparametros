@@ -17,6 +17,9 @@ import {
 // 🔹 NUEVO: handler para PREVIEW de correo de reservación
 import { previewCorreoReservacion } from './correosReservacionPreview.js';
 
+// 🔹 NUEVO: handler para ENVIAR correo y marcar email_reservacion='enviado'
+import { reenviarCorreoReservacion } from './correosReservacionEnviar.js';
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -42,10 +45,14 @@ app.get('/api/correos-reservacion-error/lista', listarCorreosReservacionError);
 // ===== Correos reservación – actualizar correo_cliente =====
 app.post('/api/correos-reservacion-error/actualizar-correo', actualizarCorreoCliente);
 
-// 🔹 NUEVO: PREVIEW de correo de reservación (NO envía, solo datos crudos)
+// 🔹 PREVIEW de correo de reservación (NO envía, solo datos crudos)
 // Soporta GET ?folio=XXXX y POST { folio }
 app.get('/api/correos-reservacion-error/preview', previewCorreoReservacion);
 app.post('/api/correos-reservacion-error/preview', previewCorreoReservacion);
+
+// 🔹 NUEVO: ENVIAR correo al cliente y marcar email_reservacion = 'enviado'
+// Body esperado: { folio }
+app.post('/api/correos-reservacion-error/enviar', reenviarCorreoReservacion);
 
 app.use((req, res) => {
   res.status(404).json({ error: 'Ruta no encontrada' });
