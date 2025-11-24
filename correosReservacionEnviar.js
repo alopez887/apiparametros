@@ -14,44 +14,39 @@ const GAS_TIMEOUT_MS = Number(process.env.GAS_TIMEOUT_MS || 15000);
  * Body esperado: { folio }
  *
  * Flujo:
- *  1) Busca la reservación por folio.
- *  2) Enriquecer con datos del proveedor (igual que preview).
- *  3) Construir subject + html usando el mismo builder que la vista previa.
- *  4) Llamar a GAS para enviar el correo.
- *  5) SOLO SI GAS responde OK → marcar email_reservacion = 'enviado'.
+ *  1) Buscar la reservación por folio
+ *  2) Validar que email_reservacion != 'enviado'
+ *  3) Construir subject + html EXACTAMENTE igual que la vista previa de ACTIVIDADES
+ *  4) Llamar a GAS_URL con el payload
+ *  5) Si GAS responde ok, actualizar email_reservacion = 'enviado'
+ *  6) Devolver resultado
  */
+
 export async function reenviarCorreoReservacion(req, res) {
   try {
-    const { folio } = req.body || {};
-
+    const folio = String(req.body?.folio || '').trim();
     if (!folio) {
       return res.status(400).json({
         ok: false,
-        error: 'Falta parámetro: folio',
+        error: 'Falta parámetro folio en el body',
       });
     }
 
-    if (!GAS_URL || !GAS_TOKEN) {
-      console.error('[REENVIO] Falta GAS_URL o GAS_TOKEN en .env');
-      return res.status(500).json({
-        ok: false,
-        error: 'Configuración de correo incompleta (GAS_URL / GAS_TOKEN)',
-      });
-    }
-
-    // 1) Leer reservación de la BD
-    const sql = `
+    // 1) Buscar reservación
+    const { rows } = await pool.query(
+      `
       SELECT *
       FROM reservaciones
       WHERE folio = $1
       LIMIT 1
-    `;
-    const { rows } = await pool.query(sql, [folio]);
+      `,
+      [folio]
+    );
 
-    if (!rows.length) {
+    if (!rows || rows.length === 0) {
       return res.status(404).json({
         ok: false,
-        error: 'No se encontró una reservación con ese folio',
+        error: 'No se encontró reservación con ese folio',
       });
     }
 
@@ -62,12 +57,10 @@ export async function reenviarCorreoReservacion(req, res) {
 
     const tipoServicio = (reserva.tipo_servicio || '').toLowerCase();
 
-    // Por ahora: solo actividades/tours (igual que el preview bonito)
+    // Por ahora: solo ACTIVIDADES soportadas en este módulo.
     if (
       tipoServicio !== 'actividad' &&
-      tipoServicio !== 'actividades' &&
-      tipoServicio !== 'tour' &&
-      tipoServicio !== 'tours'
+      tipoServicio !== 'actividades'
     ) {
       console.warn('[REENVIO] Tipo de servicio no soportado para reenvío:', tipoServicio);
       return res.status(400).json({
@@ -90,29 +83,35 @@ export async function reenviarCorreoReservacion(req, res) {
     // 🔹 NUEVO: armar CC con el correo del proveedor (si existe)
     let cc = undefined;
     const provEmailRaw = (reserva.proveedor_email || '').trim();
-    if (provEmailRaw && provEmailRaw.toLowerCase() !== emailTo.toLowerCase()) {
-      cc = provEmailRaw; // en GAS se parte por comas/semicolon, un solo correo va perfecto
+    if (provEmailRaw) {
+      cc = provEmailRaw;
     }
 
-    // 4) Llamar a GAS para enviar el correo
+    if (!subject || !html) {
+      return res.status(400).json({
+        ok: false,
+        error: 'No se pudo construir el contenido del correo para esta reservación',
+      });
+    }
+
+    // 4) Llamar a GAS_URL con el payload
     const payloadGAS = {
-      token:        GAS_TOKEN,
-      tipo:         'reservacion',          // ajusta si tu GAS espera otro tipo
-      folio:        reserva.folio,
-      tipoServicio: reserva.tipo_servicio,  // 'actividad' | 'tour' | ...
-      idioma:       reserva.idioma || 'es',
-      to:           emailTo,
-      cc,                                   // 🔹 aquí va el proveedor en copia
+      token:  GAS_TOKEN,
+      folio:  reserva.folio,
+      to:     emailTo,
+      cc,                    // puede ser undefined
       subject,
       html,
-      // Aquí podrías agregar más campos si tu WebApp GAS los usa
+      // Opcional: metadata para logs en GAS
+      tipoServicio: reserva.tipo_servicio,  // 'actividad' | otros
+      idioma:       reserva.idioma || 'es',
     };
 
     console.log('[REENVIO] Enviando correo a GAS →', GAS_URL, {
       folio:  payloadGAS.folio,
       to:     payloadGAS.to,
       cc:     payloadGAS.cc || null,
-      tipo:   payloadGAS.tipo,
+      tipo:   payloadGAS.tipoServicio,
       idioma: payloadGAS.idioma,
     });
 
@@ -124,49 +123,46 @@ export async function reenviarCorreoReservacion(req, res) {
       gasRes = await fetch(GAS_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:   JSON.stringify(payloadGAS),
+        body: JSON.stringify(payloadGAS),
         signal: ctrl.signal,
       });
     } catch (err) {
       clearTimeout(timeoutId);
-      console.error('❌ [REENVIO] Error de red al llamar a GAS:', err);
+      console.error('❌ Error al llamar GAS para reenviar correo:', err);
       return res.status(502).json({
         ok: false,
-        error: 'No se pudo contactar al servicio de correo (GAS)',
+        error: 'No se pudo contactar el servicio de envío de correos (GAS)',
       });
     }
-
     clearTimeout(timeoutId);
 
-    let gasJson = {};
+    let gasJson = null;
     try {
       gasJson = await gasRes.json();
-    } catch (_) {
-      gasJson = {};
+    } catch {
+      gasJson = null;
     }
 
-    if (!gasRes.ok || gasJson.ok === false) {
-      const msg = gasJson.error || gasJson.message || `HTTP ${gasRes.status}`;
-      console.error('❌ [REENVIO] GAS respondió error:', msg, gasJson);
+    if (!gasRes.ok || !gasJson || !gasJson.ok) {
+      console.error('❌ GAS respondió error al reenviar correo:', gasJson || gasRes.status);
       return res.status(502).json({
         ok: false,
-        error: 'El servicio de correo (GAS) no pudo enviar el correo',
-        detalle: msg,
+        error: 'El servicio de envío de correos respondió con error',
+        detalle: gasJson || { status: gasRes.status, statusText: gasRes.statusText },
       });
     }
 
-    // 5) SOLO si GAS dice OK → marcar email_reservacion = 'enviado'
-    const updSql = `
+    // 5) Actualizar email_reservacion = 'enviado'
+    const updateSql = `
       UPDATE reservaciones
       SET email_reservacion = 'enviado'
       WHERE folio = $1
-      RETURNING folio, email_reservacion
+      RETURNING email_reservacion
     `;
-    const { rows: updRows } = await pool.query(updSql, [folio]);
-    const updated = updRows[0] || null;
+    const { rows: updRows } = await pool.query(updateSql, [folio]);
+    const updated = updRows?.[0] || null;
 
-    console.log('[REENVIO] Reservación actualizada a "enviado":', updated);
-
+    // 6) Responder ok
     return res.json({
       ok: true,
       folio,
