@@ -87,26 +87,33 @@ export async function reenviarCorreoReservacion(req, res) {
       });
     }
 
+    // 🔹 NUEVO: armar CC con el correo del proveedor (si existe)
+    let cc = undefined;
+    const provEmailRaw = (reserva.proveedor_email || '').trim();
+    if (provEmailRaw && provEmailRaw.toLowerCase() !== emailTo.toLowerCase()) {
+      cc = provEmailRaw; // en GAS se parte por comas/semicolon, un solo correo va perfecto
+    }
+
     // 4) Llamar a GAS para enviar el correo
-    // 👇 OJO: NO mandamos `folio` para no activar la idempotencia del GAS.
     const payloadGAS = {
       token:        GAS_TOKEN,
-      tipo:         'reservacion',        // dejamos el mismo tipo clásico
-      // folio:     <<< NO lo mandamos a GAS en el reenvío
-      folioCorreo:  reserva.folio,        // solo para referencia si luego quieres verlo en logs del GAS
-      tipoServicio: reserva.tipo_servicio,
+      tipo:         'reservacion',          // ajusta si tu GAS espera otro tipo
+      folio:        reserva.folio,
+      tipoServicio: reserva.tipo_servicio,  // 'actividad' | 'tour' | ...
       idioma:       reserva.idioma || 'es',
       to:           emailTo,
+      cc,                                   // 🔹 aquí va el proveedor en copia
       subject,
       html,
-      ts:           Date.now(),           // por si activas ENFORCE_TS_SEC en el futuro
+      // Aquí podrías agregar más campos si tu WebApp GAS los usa
     };
 
     console.log('[REENVIO] Enviando correo a GAS →', GAS_URL, {
-      folio: reserva.folio,
-      to:    payloadGAS.to,
-      tipo:  payloadGAS.tipo,
-      idioma:payloadGAS.idioma,
+      folio:  payloadGAS.folio,
+      to:     payloadGAS.to,
+      cc:     payloadGAS.cc || null,
+      tipo:   payloadGAS.tipo,
+      idioma: payloadGAS.idioma,
     });
 
     const ctrl = new AbortController();
@@ -137,8 +144,6 @@ export async function reenviarCorreoReservacion(req, res) {
     } catch (_) {
       gasJson = {};
     }
-
-    console.log('[REENVIO] Respuesta GAS:', gasRes.status, gasJson);
 
     if (!gasRes.ok || gasJson.ok === false) {
       const msg = gasJson.error || gasJson.message || `HTTP ${gasRes.status}`;
