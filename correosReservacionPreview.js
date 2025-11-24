@@ -4,36 +4,61 @@ import { buildPreviewActividadesFromReserva } from './correoActividadesPreview.j
 
 /**
  * Enriquecer reserva con datos del proveedor (si existe).
- * Lo separamos para reuso en preview + envío.
+ * Usa la columna `proveedor` de la tabla `reservaciones` como NOMBRE,
+ * y busca en la tabla `actividades_proveedores.nombre`.
  */
 export async function enriquecerReservaConProveedor(reserva) {
-  if (!reserva || !reserva.proveedor) return reserva;
+  if (!reserva) return reserva;
+
+  // Si ya trae nombre + (email o teléfono) de proveedor, no tocamos nada
+  if (
+    reserva.proveedor_nombre &&
+    (reserva.proveedor_email || reserva.proveedor_telefono)
+  ) {
+    return reserva;
+  }
+
+  // Aquí usamos EXACTAMENTE la columna que tienes en `reservaciones`
+  const nombreProv = (reserva.proveedor || '').trim();
+  if (!nombreProv) {
+    return reserva;
+  }
+
   try {
     const { rows } = await pool.query(
       `
       SELECT
-        codigo,
-        nombre       AS proveedor_nombre,
-        email        AS proveedor_email,
-        telefono     AS proveedor_telefono
-      FROM proveedores
-      WHERE codigo = $1
+        nombre           AS proveedor_nombre,
+        email_contacto   AS proveedor_email,
+        telefono_contacto AS proveedor_telefono
+      FROM actividades_proveedores
+      WHERE nombre = $1
       LIMIT 1
       `,
-      [reserva.proveedor]
+      [nombreProv]
     );
+
     if (rows && rows.length > 0) {
       const prov = rows[0];
       return {
         ...reserva,
-        proveedor_nombre: prov.proveedor_nombre,
-        proveedor_email: prov.proveedor_email,
-        proveedor_telefono: prov.proveedor_telefono,
+        proveedor_nombre:   prov.proveedor_nombre || nombreProv,
+        proveedor_email:    prov.proveedor_email || '',
+        proveedor_telefono: prov.proveedor_telefono || '',
       };
     }
   } catch (err) {
     console.warn('⚠️ No se pudo enriquecer reserva con proveedor:', err?.message);
   }
+
+  // Si no se encontró en la tabla, al menos aseguramos proveedor_nombre
+  if (!reserva.proveedor_nombre && nombreProv) {
+    return {
+      ...reserva,
+      proveedor_nombre: nombreProv,
+    };
+  }
+
   return reserva;
 }
 
@@ -75,7 +100,8 @@ export async function previewCorreoReservacion(req, res) {
 
     let reserva = rows[0];
 
-    // Enriquecer con datos del proveedor (genérico)
+    // 🔹 Enriquecer con datos del proveedor usando `reservaciones.proveedor`
+    //     -> actividades_proveedores.nombre
     reserva = await enriquecerReservaConProveedor(reserva);
 
     const tipoServicio = (reserva.tipo_servicio || '').toLowerCase();
@@ -83,22 +109,12 @@ export async function previewCorreoReservacion(req, res) {
     let subject = null;
     let html    = null;
 
-    // Por ahora, preview "bonita" solo para Actividades.
-    if (
-      tipoServicio === 'actividad'   ||
-      tipoServicio === 'actividades'
-    ) {
+    // ACTIVIDADES -> usamos el layout de correoActividadesPreview.js
+    if (tipoServicio === 'actividad' || tipoServicio === 'actividades') {
       const built = buildPreviewActividadesFromReserva(reserva);
       subject = built.subject;
       html    = built.html;
     }
-
-    // En el futuro:
-    // else if (tipoServicio === 'transporte' || tipoServicio === 'transportacion') {
-    //   const built = buildPreviewTransporteFromReserva(reserva);
-    //   subject = built.subject;
-    //   html    = built.html;
-    // }
 
     return res.json({
       ok: true,
