@@ -146,7 +146,7 @@ const LOGO_URL = 'https://static.wixstatic.com/media/f81ced_636e76aeb741411b87c4
  *  - Tomamos actividades_proveedores.email_contacto y telefono_contacto
  *  - SIN romper nada si no encuentra / hay error
  */
-async function enriquecerReservaConProveedor(reserva) {
+export async function enriquecerReservaConProveedor(reserva) {
   if (!reserva) return reserva;
 
   const nombreProv = reserva.proveedor || reserva.proveedor_nombre || null;
@@ -200,7 +200,7 @@ async function enriquecerReservaConProveedor(reserva) {
 }
 
 // ===== Construcción de subject + HTML para ACTIVIDADES (basado en enviarCorreo.js) =====
-function buildPreviewActividadesFromReserva(reserva = {}) {
+export function buildPreviewActividadesFromReserva(reserva = {}) {
   // Mapear fila de reservaciones → estructura "datos" del correo
   const datos = {
     idioma:           reserva.idioma,
@@ -382,7 +382,6 @@ function buildPreviewActividadesFromReserva(reserva = {}) {
 }
 
 // ===== Handler principal =====
-
 export async function previewCorreoReservacion(req, res) {
   try {
     const folio =
