@@ -2,6 +2,7 @@
 import pool from './conexion.js';
 import { buildPreviewActividadesFromReserva } from './correoActividadesPreview.js';
 import { enriquecerReservaConProveedor } from './correosReservacionPreview.js';
+import { buildPreviewTransporteFromReserva } from './correoTransportePreview.js';
 
 const GAS_URL        = process.env.GAS_URL;        // WebApp GAS que envía los correos
 const GAS_TOKEN      = process.env.GAS_TOKEN;      // Token secreto que valida la petición
@@ -13,8 +14,10 @@ const GAS_TIMEOUT_MS = Number(process.env.GAS_TIMEOUT_MS || 15000);
  *
  * Flujo:
  *  1) Buscar la reservación por folio
- *  2) Validar que email_reservacion != 'enviado'
- *  3) Construir subject + html EXACTAMENTE igual que la vista previa de ACTIVIDADES
+ *  2) Enriquecer con proveedor (si aplica)
+ *  3) Según tipo_servicio:
+ *      - ACTIVIDAD/ACTIVIDADES: usar layout de actividades + CC al proveedor
+ *      - TRANSPORTACION/TRANSPORTE: usar layout de transporte, solo cliente (sin CC)
  *  4) Llamar a GAS_URL con el payload
  *  5) Si GAS responde ok, actualizar email_reservacion = 'enviado'
  *  6) Devolver resultado
@@ -55,11 +58,30 @@ export async function reenviarCorreoReservacion(req, res) {
 
     const tipoServicio = (reserva.tipo_servicio || '').toLowerCase();
 
-    // Por ahora: solo ACTIVIDADES soportadas en este módulo.
-    if (
-      tipoServicio !== 'actividad' &&
-      tipoServicio !== 'actividades'
-    ) {
+    // 3) Construir subject + html según el tipo de servicio
+    let subject = null;
+    let html    = null;
+    let cc      = undefined; // solo se usa para ACTIVIDADES
+
+    if (tipoServicio === 'actividad' || tipoServicio === 'actividades') {
+      // ===== ACTIVIDADES (flujo original, intacto) =====
+      const built = await buildPreviewActividadesFromReserva(reserva);
+      subject = built.subject;
+      html    = built.html;
+
+      // CC al correo del proveedor si existe (igual que antes)
+      const provEmailRaw = (reserva.proveedor_email || '').trim();
+      if (provEmailRaw) {
+        cc = provEmailRaw;
+      }
+    } else if (tipoServicio === 'transportacion' || tipoServicio === 'transporte') {
+      // ===== TRANSPORTE (nuevo) =====
+      // Solo se envía al cliente, SIN CC al proveedor.
+      const built = await buildPreviewTransporteFromReserva(reserva);
+      subject = built.subject;
+      html    = built.html;
+      cc      = undefined;
+    } else {
       console.warn('[REENVIO] Tipo de servicio no soportado para reenvío:', tipoServicio);
       return res.status(400).json({
         ok: false,
@@ -67,22 +89,12 @@ export async function reenviarCorreoReservacion(req, res) {
       });
     }
 
-    // 3) Construir subject + html EXACTAMENTE como la vista previa
-    const { subject, html } = buildPreviewActividadesFromReserva(reserva);
-
     const emailTo = (reserva.correo_cliente || '').trim();
     if (!emailTo) {
       return res.status(400).json({
         ok: false,
         error: 'La reservación no tiene correo_cliente',
       });
-    }
-
-    // 🔹 NUEVO: armar CC con el correo del proveedor (si existe)
-    let cc = undefined;
-    const provEmailRaw = (reserva.proveedor_email || '').trim();
-    if (provEmailRaw) {
-      cc = provEmailRaw;
     }
 
     if (!subject || !html) {
@@ -97,11 +109,11 @@ export async function reenviarCorreoReservacion(req, res) {
       token:  GAS_TOKEN,
       folio:  reserva.folio,
       to:     emailTo,
-      cc,                    // puede ser undefined
+      cc,                    // puede ser undefined; en transporte va vacío
       subject,
       html,
       // Opcional: metadata para logs en GAS
-      tipoServicio: reserva.tipo_servicio,  // 'actividad' | otros
+      tipoServicio: reserva.tipo_servicio,  // 'actividad' | 'Transportacion' | etc.
       idioma:       reserva.idioma || 'es',
     };
 
@@ -175,3 +187,4 @@ export async function reenviarCorreoReservacion(req, res) {
     });
   }
 }
+
