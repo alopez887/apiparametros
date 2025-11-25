@@ -23,6 +23,10 @@ import {
   reenviarCorreoReservacion as reenviarCorreoActividades,
 } from './correoActividades/correoActividadesEnviar.js';
 
+import {
+  reenviarCorreoTransporte,
+} from './correoTransporte/correosTransporteEnviar.js';
+
 const app  = express();
 const PORT = process.env.PORT || 3000;
 
@@ -56,6 +60,8 @@ app.post('/api/correos-reservacion-error/preview', previewCorreoReservacion);
 // Body esperado: { folio }
 // El iframe sigue pegándole a esta misma ruta.
 app.post('/api/correos-reservacion-error/enviar', reenviarCorreoActividades);
+
+app.post('/api/correos-reservacion-error/enviar-transporte', reenviarCorreoTransporte);
 
 app.use((req, res) => {
   res.status(404).json({ error: 'Ruta no encontrada' });

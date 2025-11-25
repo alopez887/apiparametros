@@ -1,15 +1,8 @@
-// correosReservacionPreview.js
+// correosReservacionPreview.js 
 import pool from './conexion.js';
-// 🔹 OJO: ahora el preview de Actividades está en la carpeta /correoActividades
 import { buildPreviewActividadesFromReserva } from './correoActividades/correoActividadesPreview.js';
-// ❌ Quitamos por completo transporte por ahora
-// import { buildPreviewTransporteFromReserva } from './correoTransportePreview.js';
+import { buildPreviewTransporteFromReserva } from './correoTransporte/correosTransportePreview.js';
 
-/**
- * Enriquecer reserva con datos del proveedor (si existe).
- * Usa la columna `proveedor` de la tabla `reservaciones` como NOMBRE,
- * y busca en la tabla `actividades_proveedores.nombre`.
- */
 export async function enriquecerReservaConProveedor(reserva) {
   if (!reserva) return reserva;
 
@@ -114,7 +107,13 @@ export async function previewCorreoReservacion(req, res) {
       subject = built.subject;
       html    = built.html;
     }
-    // ========= OTROS SERVICIOS (incluido transporte, por ahora) =========
+    // ========= TRANSPORTE =========
+    else if (tipoServicio === 'transportacion' || tipoServicio === 'transporte') {
+      const built = await buildPreviewTransporteFromReserva(reserva); // esta sí es async
+      subject = built.subject;
+      html    = built.html;
+    }
+    // ========= OTROS SERVICIOS (por ahora) =========
     else {
       // Por ahora no generamos HTML bonito para otros servicios
       subject = null;
