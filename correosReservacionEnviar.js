@@ -57,6 +57,7 @@ export async function reenviarCorreoReservacion(req, res) {
     reserva = await enriquecerReservaConProveedor(reserva);
 
     const tipoServicio = (reserva.tipo_servicio || '').toLowerCase();
+    console.log('[REENVIO] folio=', folio, 'tipo_servicio=', tipoServicio, 'idioma=', reserva.idioma);
 
     // 3) Construir subject + html según el tipo de servicio
     let subject = null;
@@ -69,6 +70,8 @@ export async function reenviarCorreoReservacion(req, res) {
       subject = built.subject;
       html    = built.html;
 
+      console.log('[REENVIO] ACTIVIDAD subject=', subject);
+
       // CC al correo del proveedor si existe (igual que antes)
       const provEmailRaw = (reserva.proveedor_email || '').trim();
       if (provEmailRaw) {
@@ -79,10 +82,12 @@ export async function reenviarCorreoReservacion(req, res) {
       // Solo se envía al cliente, SIN CC al proveedor.
       const built = await buildPreviewTransporteFromReserva(reserva);
 
-      // ⬇ Usamos EXACTAMENTE el mismo subject y html que el envío normal
+      // Usamos EXACTAMENTE el mismo subject y html que el envío normal
       subject = built.subject;
       html    = built.html;
       cc      = undefined;
+
+      console.log('[REENVIO] TRANSPORTE subject-from-builder=', subject);
     } else {
       console.warn('[REENVIO] Tipo de servicio no soportado para reenvío:', tipoServicio);
       return res.status(400).json({
@@ -100,6 +105,7 @@ export async function reenviarCorreoReservacion(req, res) {
     }
 
     if (!subject || !html) {
+      console.error('[REENVIO] subject/html vacío para folio=', folio, 'subject=', subject);
       return res.status(400).json({
         ok: false,
         error: 'No se pudo construir el contenido del correo para esta reservación',

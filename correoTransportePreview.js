@@ -338,6 +338,9 @@ export async function buildPreviewTransporteFromReserva(reserva) {
 
   const subject = L.subject(reserva.folio);
 
+  // 🔹 LOG para revisar subject antes de salir al reenvío
+  console.log('[PREVIEW-TRANSPORTE] folio=', reserva.folio, 'idioma=', L.code, 'subject=', subject);
+
   const htmlDoc = `
 <!DOCTYPE html>
 <html lang="${L.code}">
