@@ -1,4 +1,4 @@
-// correosReservacionEnviar.js
+/// correosReservacionEnviar.js
 import pool from './conexion.js';
 import { buildPreviewActividadesFromReserva } from './correoActividadesPreview.js';
 import { enriquecerReservaConProveedor } from './correosReservacionPreview.js';
@@ -77,6 +77,7 @@ export async function reenviarCorreoReservacion(req, res) {
       if (provEmailRaw) {
         cc = provEmailRaw;
       }
+
     } else if (tipoServicio === 'transportacion' || tipoServicio === 'transporte') {
       // ===== TRANSPORTE =====
       // Solo se envía al cliente, SIN CC al proveedor.
@@ -85,8 +86,7 @@ export async function reenviarCorreoReservacion(req, res) {
       // Usamos el HTML del builder (diseño completo)
       html = built.html;
 
-      // 🔹 SUBJECT: lo forzamos igual que el envío normal, pero sin depender
-      // de cómo el editor guarda la 'ó' en el archivo (usamos \u00f3).
+      // SUBJECT: lo forzamos igual que el flujo normal, con tilde escapada
       const idioma = String(reserva.idioma || 'es').toLowerCase();
       const es = idioma.startsWith('es');
 
@@ -97,6 +97,7 @@ export async function reenviarCorreoReservacion(req, res) {
       cc = undefined;
 
       console.log('[REENVIO] TRANSPORTE subject-fixed=', subject, 'idioma=', idioma);
+
     } else {
       console.warn('[REENVIO] Tipo de servicio no soportado para reenvío:', tipoServicio);
       return res.status(400).json({
