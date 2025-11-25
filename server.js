@@ -14,14 +14,14 @@ import {
   actualizarCorreoCliente,
 } from './correosReservacion.js';
 
-// 🔹 Handler para PREVIEW (usa internamente actividades / transporte)
+// 🔹 Handler para PREVIEW (usa internamente actividades y, si existe, otros servicios)
 import { previewCorreoReservacion } from './correosReservacionPreview.js';
 
-// 🔹 NUEVO: handler SOLO para reenviar correos de ACTIVIDADES
+// 🔹 Handler SOLO para reenviar correos de ACTIVIDADES
 // (antes se llamaba correosReservacionEnviar.js en la raíz)
 import {
   reenviarCorreoReservacion as reenviarCorreoActividades,
-} from './correoActividades/correoActividadesEnviar.js';
+} from './correoActividades/correosActividadesEnviar.js';
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
@@ -69,4 +69,3 @@ app.use((err, _req, res, _next) => {
 app.listen(PORT, () => {
   console.log(`🚀 API-Parametros escuchando en puerto ${PORT}`);
 });
-
