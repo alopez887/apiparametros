@@ -41,26 +41,35 @@ export async function contarCorreosReservacionError(req, res) {
  * GET /api/correos-reservacion-error/lista?desde=YYYY-MM-DD&hasta=YYYY-MM-DD
  * Lista las reservaciones cuyo email_reservacion es distinto de 'enviado'
  * en el rango de fechas indicado (fecha::date).
- * Si no se mandan desde/hasta, usa últimos 30 días.
+ * Si NO se mandan desde/hasta, NO se aplica filtro de fecha (lista global).
  */
 export async function listarCorreosReservacionError(req, res) {
   try {
-    let { desde, hasta } = req.query;
+    const { desde, hasta } = req.query || {};
 
-    // Normalizar fechas
-    let fHasta = normalizarFecha(hasta);
-    let fDesde = normalizarFecha(desde);
+    // armamos WHERE dinámico
+    let where  = `COALESCE(LOWER(email_reservacion), '') <> 'enviado'`;
+    const params = [];
 
-    const hoy = new Date();
+    let outDesde = null;
+    let outHasta = null;
 
-    if (!fHasta) {
-      fHasta = hoy.toISOString().slice(0, 10); // hoy
+    if (desde) {
+      const fDesde = normalizarFecha(desde);
+      if (fDesde) {
+        outDesde = fDesde;
+        params.push(fDesde);
+        where += ` AND fecha::date >= $${params.length}`;
+      }
     }
 
-    if (!fDesde) {
-      const d = new Date(fHasta);
-      d.setDate(d.getDate() - 30); // últimos 30 días
-      fDesde = d.toISOString().slice(0, 10);
+    if (hasta) {
+      const fHasta = normalizarFecha(hasta);
+      if (fHasta) {
+        outHasta = fHasta;
+        params.push(fHasta);
+        where += ` AND fecha::date <= $${params.length}`;
+      }
     }
 
     const sql = `
@@ -71,18 +80,18 @@ export async function listarCorreosReservacionError(req, res) {
         correo_cliente,
         email_reservacion
       FROM reservaciones
-      WHERE COALESCE(LOWER(email_reservacion), '') <> 'enviado'
-        AND fecha::date BETWEEN $1 AND $2
+      WHERE ${where}
       ORDER BY fecha DESC
       LIMIT 500
     `;
 
-    const { rows } = await pool.query(sql, [fDesde, fHasta]);
+    const { rows } = await pool.query(sql, params);
 
     return res.json({
       ok: true,
-      desde: fDesde,
-      hasta: fHasta,
+      // si no se mandó un límite, regresamos null
+      desde: outDesde,
+      hasta: outHasta,
       total: rows.length,
       datos: rows
     });
