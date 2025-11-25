@@ -1,4 +1,4 @@
-// correosReservacion.js
+// correosReservacion.js 
 import pool from './conexion.js';
 
 /**
