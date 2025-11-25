@@ -78,14 +78,11 @@ export async function reenviarCorreoReservacion(req, res) {
       // ===== TRANSPORTE =====
       // Solo se envía al cliente, SIN CC al proveedor.
       const built = await buildPreviewTransporteFromReserva(reserva);
-      html = built.html;
-      cc   = undefined;
 
-      // ⬇⬇ AQUÍ forzamos el subject nosotros, sin depender de la otra función
-      const es = String(reserva.idioma || '').toLowerCase().startsWith('es');
-      subject = es
-        ? `Confirmaci\u00F3n de Transporte - Folio ${reserva.folio}`
-        : `Transport Reservation - Folio ${reserva.folio}`;
+      // ⬇ Usamos EXACTAMENTE el mismo subject y html que el envío normal
+      subject = built.subject;
+      html    = built.html;
+      cc      = undefined;
     } else {
       console.warn('[REENVIO] Tipo de servicio no soportado para reenvío:', tipoServicio);
       return res.status(400).json({
