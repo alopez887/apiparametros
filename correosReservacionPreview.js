@@ -1,6 +1,6 @@
 // correosReservacionPreview.js
 import pool from './conexion.js';
-import { buildPreviewActividadesFromReserva } from './correoActividadesPreview.js';
+import { buildPreviewActividadesFromReserva } from './correoActividades/correoActividadesPreview.js';
 import { buildPreviewTransporteFromReserva } from './correoTransportePreview.js';
 
 /**

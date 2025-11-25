@@ -21,7 +21,7 @@ import { previewCorreoReservacion } from './correosReservacionPreview.js';
 // (antes se llamaba correosReservacionEnviar.js en la raíz)
 import {
   reenviarCorreoReservacion as reenviarCorreoActividades,
-} from './correoActividades/correoActividadesEnviar.js';
+} from './correoActividades/correosActividadesEnviar.js';
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
@@ -69,3 +69,4 @@ app.use((err, _req, res, _next) => {
 app.listen(PORT, () => {
   console.log(`🚀 API-Parametros escuchando en puerto ${PORT}`);
 });
+
