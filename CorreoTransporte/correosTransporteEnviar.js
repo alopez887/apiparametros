@@ -1,4 +1,4 @@
-// correoTransporte/correosTransporteEnviar.js
+// correoTransporte/correosTransporteEnviar.js   
 import pool from '../conexion.js';
 import { buildPreviewTransporteFromReserva } from './correosTransportePreview.js';
 import { generarQRTransporte } from '../generarQRTransporte.js';
