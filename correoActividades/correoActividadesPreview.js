@@ -1,4 +1,4 @@
-// correoActividadesPreview.js
+// correoActividadesPreview.js 
 // PREVIEW para ACTIVIDADES usando el MISMO layout que enviarCorreo.js
 // (¡Gracias por tu compra! / Thanks for your purchase!)
 
