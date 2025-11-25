@@ -7,20 +7,23 @@ import cors from 'cors';
 import { obtenerTipoCambio } from './obtenerTipoCambio.js';
 import { guardarTipoCambio } from './guardarTipoCambio.js';
 
-// 🔹 Handlers para correos de reservación (errores)
+// 🔹 Handlers para correos de reservación (errores: contador/lista/editar correo)
 import {
   contarCorreosReservacionError,
   listarCorreosReservacionError,
   actualizarCorreoCliente,
 } from './correosReservacion.js';
 
-// 🔹 NUEVO: handler para PREVIEW de correo de reservación
+// 🔹 Handler para PREVIEW (usa internamente actividades / transporte)
 import { previewCorreoReservacion } from './correosReservacionPreview.js';
 
-// 🔹 NUEVO: handler para ENVIAR correo y marcar email_reservacion='enviado'
-import { reenviarCorreoReservacion } from './correosReservacionEnviar.js';
+// 🔹 NUEVO: handler SOLO para reenviar correos de ACTIVIDADES
+// (antes se llamaba correosReservacionEnviar.js en la raíz)
+import {
+  reenviarCorreoReservacion as reenviarCorreoActividades,
+} from './correoActividades/correoActividadesEnviar.js';
 
-const app = express();
+const app  = express();
 const PORT = process.env.PORT || 3000;
 
 app.set('trust proxy', 1);
@@ -46,13 +49,13 @@ app.get('/api/correos-reservacion-error/lista', listarCorreosReservacionError);
 app.post('/api/correos-reservacion-error/actualizar-correo', actualizarCorreoCliente);
 
 // 🔹 PREVIEW de correo de reservación (NO envía, solo datos crudos)
-// Soporta GET ?folio=XXXX y POST { folio }
 app.get('/api/correos-reservacion-error/preview', previewCorreoReservacion);
 app.post('/api/correos-reservacion-error/preview', previewCorreoReservacion);
 
-// 🔹 NUEVO: ENVIAR correo al cliente y marcar email_reservacion = 'enviado'
+// 🔹 ENVIAR correo al cliente (por ahora SOLO ACTIVIDADES)
 // Body esperado: { folio }
-app.post('/api/correos-reservacion-error/enviar', reenviarCorreoReservacion);
+// El iframe sigue pegándole a esta misma ruta.
+app.post('/api/correos-reservacion-error/enviar', reenviarCorreoActividades);
 
 app.use((req, res) => {
   res.status(404).json({ error: 'Ruta no encontrada' });
