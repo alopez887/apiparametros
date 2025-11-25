@@ -1,7 +1,7 @@
 // correoTransporte/correosTransporteEnviar.js   
 import pool from '../conexion.js';
 import { buildPreviewTransporteFromReserva } from './correosTransportePreview.js';
-import { generarQRTransporte } from '../generarQRTransporte.js';
+import { generarQRTransporte } from './generarQRTransporte.js';
 
 const GAS_URL        = process.env.GAS_URL;
 const GAS_TOKEN      = process.env.GAS_TOKEN;
