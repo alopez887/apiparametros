@@ -82,12 +82,20 @@ export async function reenviarCorreoReservacion(req, res) {
       // Solo se envía al cliente, SIN CC al proveedor.
       const built = await buildPreviewTransporteFromReserva(reserva);
 
-      // Usamos EXACTAMENTE el mismo subject y html que el envío normal
-      subject = built.subject;
-      html    = built.html;
-      cc      = undefined;
+      // Usamos el HTML del builder (diseño completo)
+      html = built.html;
 
-      console.log('[REENVIO] TRANSPORTE subject-from-builder=', subject);
+      // 🔹 SUBJECT: lo forzamos igual que correosTransporte.js, con tilde en ES
+      const idioma = String(reserva.idioma || 'es').toLowerCase();
+      const es = idioma.startsWith('es');
+
+      subject = es
+        ? `Confirmación de Transporte - Folio ${reserva.folio}`
+        : `Transport Reservation - Folio ${reserva.folio}`;
+
+      cc = undefined;
+
+      console.log('[REENVIO] TRANSPORTE subject-fixed=', subject, 'idioma=', idioma);
     } else {
       console.warn('[REENVIO] Tipo de servicio no soportado para reenvío:', tipoServicio);
       return res.status(400).json({
@@ -126,11 +134,11 @@ export async function reenviarCorreoReservacion(req, res) {
     };
 
     console.log('[REENVIO] Enviando correo a GAS →', GAS_URL, {
-      folio:  payloadGAS.folio,
-      to:     payloadGAS.to,
-      cc:     payloadGAS.cc || null,
-      tipo:   payloadGAS.tipoServicio,
-      idioma: payloadGAS.idioma,
+      folio:   payloadGAS.folio,
+      to:      payloadGAS.to,
+      cc:      payloadGAS.cc || null,
+      tipo:    payloadGAS.tipoServicio,
+      idioma:  payloadGAS.idioma,
       subject: payloadGAS.subject,
     });
 
