@@ -21,7 +21,7 @@ import { previewCorreoReservacion } from './correosReservacionPreview.js';
 // (antes se llamaba correosReservacionEnviar.js en la raíz)
 import {
   reenviarCorreoReservacion as reenviarCorreoActividades,
-} from './correoActividades/correosActividadesEnviar.js';
+} from './correoActividades/correoActividadesEnviar.js';
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
