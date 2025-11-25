@@ -85,12 +85,13 @@ export async function reenviarCorreoReservacion(req, res) {
       // Usamos el HTML del builder (diseño completo)
       html = built.html;
 
-      // 🔹 SUBJECT: lo forzamos igual que correosTransporte.js, con tilde en ES
+      // 🔹 SUBJECT: lo forzamos igual que el envío normal, pero sin depender
+      // de cómo el editor guarda la 'ó' en el archivo (usamos \u00f3).
       const idioma = String(reserva.idioma || 'es').toLowerCase();
       const es = idioma.startsWith('es');
 
       subject = es
-        ? `Confirmación de Transporte - Folio ${reserva.folio}`
+        ? `Confirmaci\u00f3n de Transporte - Folio ${reserva.folio}`
         : `Transport Reservation - Folio ${reserva.folio}`;
 
       cc = undefined;
