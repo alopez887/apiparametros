@@ -297,7 +297,7 @@ export function buildPreviewActividadesFromReserva(reserva) {
 
   const subject = (T.subject || STR.es.subject)(datos.folio || '');
 
-  // Lo envolvemos en un HTML básico (como antes hacía el preview feo)
+  // HTML básico SIN fondo gris
   const htmlDoc = `
 <!DOCTYPE html>
 <html lang="${LANG}">
@@ -305,7 +305,7 @@ export function buildPreviewActividadesFromReserva(reserva) {
   <meta charset="UTF-8" />
   <title>${subject}</title>
 </head>
-<body style="margin:0;padding:16px;background:#f3f4f6;font-family:Arial,Helvetica,sans-serif;">
+<body style="margin:0;padding:16px;font-family:Arial,Helvetica,sans-serif;">
   ${mensajeHTML}
 </body>
 </html>

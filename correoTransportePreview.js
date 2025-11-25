@@ -345,7 +345,7 @@ export async function buildPreviewTransporteFromReserva(reserva) {
   <meta charset="UTF-8" />
   <title>${subject}</title>
 </head>
-<body style="margin:0;padding:16px;background:#f3f4f6;font-family:Arial,Helvetica,sans-serif;">
+<body style="margin:0;padding:16px;font-family:Arial,Helvetica,sans-serif;">
   ${mensajeHTML}
 </body>
 </html>

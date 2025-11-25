@@ -132,7 +132,7 @@ export async function reenviarCorreoReservacion(req, res) {
     try {
       gasRes = await fetch(GAS_URL, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json; charset=utf-8' }, // ← AQUÍ EL CAMBIO
         body: JSON.stringify(payloadGAS),
         signal: ctrl.signal,
       });
@@ -187,4 +187,3 @@ export async function reenviarCorreoReservacion(req, res) {
     });
   }
 }
-
