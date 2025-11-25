@@ -14,14 +14,14 @@ import {
   actualizarCorreoCliente,
 } from './correosReservacion.js';
 
-// 🔹 Handler para PREVIEW (usa internamente actividades y, si existe, otros servicios)
+// 🔹 Handler para PREVIEW (usa internamente actividades / transporte)
 import { previewCorreoReservacion } from './correosReservacionPreview.js';
 
-// 🔹 Handler SOLO para reenviar correos de ACTIVIDADES
+// 🔹 NUEVO: handler SOLO para reenviar correos de ACTIVIDADES
 // (antes se llamaba correosReservacionEnviar.js en la raíz)
 import {
   reenviarCorreoReservacion as reenviarCorreoActividades,
-} from './correoActividades/correosActividadesEnviar.js';
+} from './correoActividades/correoActividadesEnviar.js';
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
