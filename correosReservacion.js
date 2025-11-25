@@ -78,7 +78,9 @@ export async function listarCorreosReservacionError(req, res) {
         nombre_cliente,
         fecha,
         correo_cliente,
-        email_reservacion
+        email_reservacion,
+        tipo_servicio,
+        servicio
       FROM reservaciones
       WHERE ${where}
       ORDER BY fecha DESC
