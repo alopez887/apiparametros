@@ -75,7 +75,7 @@ export async function reenviarCorreoReservacion(req, res) {
         cc = provEmailRaw;
       }
     } else if (tipoServicio === 'transportacion' || tipoServicio === 'transporte') {
-      // ===== TRANSPORTE (nuevo) =====
+      // ===== TRANSPORTE =====
       // Solo se envía al cliente, SIN CC al proveedor.
       const built = await buildPreviewTransporteFromReserva(reserva);
       subject = built.subject;
@@ -132,7 +132,8 @@ export async function reenviarCorreoReservacion(req, res) {
     try {
       gasRes = await fetch(GAS_URL, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json; charset=utf-8' }, // ← cambio para UTF-8
+        // 🔴 AQUÍ ERA EL PROBLEMA: forzamos JSON en UTF-8 para que el SUBJECT llegue bien
+        headers: { 'Content-Type': 'application/json; charset=utf-8' },
         body: JSON.stringify(payloadGAS),
         signal: ctrl.signal,
       });
