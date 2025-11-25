@@ -1,5 +1,5 @@
 // correoTransporte/correosTransportePreview.js
-import { generarQRTransporte } from '../generarQRTransporte.js';
+import { generarQRTransporte } from './generarQRTransporte.js';
 
 /* ============ Utilidades básicas ============ */
 
