@@ -2,6 +2,7 @@
 import pool from './conexion.js';
 import { buildPreviewActividadesFromReserva } from './correoActividades/correoActividadesPreview.js';
 import { buildPreviewTransporteFromReserva } from './correoTransporte/correosTransportePreview.js';
+import { buildPreviewToursFromReserva } from './correoTours/correosToursPreview.js';
 
 export async function enriquecerReservaConProveedor(reserva) {
   if (!reserva) return reserva;
@@ -109,7 +110,18 @@ export async function previewCorreoReservacion(req, res) {
     }
     // ========= TRANSPORTE =========
     else if (tipoServicio === 'transportacion' || tipoServicio === 'transporte') {
-      const built = await buildPreviewTransporteFromReserva(reserva); // esta sí es async
+      const built = await buildPreviewTransporteFromReserva(reserva); // async
+      subject = built.subject;
+      html    = built.html;
+    }
+    // ========= TOURS (antes Destino) =========
+    else if (
+      tipoServicio === 'tours' ||
+      tipoServicio === 'tour'  ||
+      tipoServicio === 'destino' ||
+      tipoServicio === 'destinos'
+    ) {
+      const built = await buildPreviewToursFromReserva(reserva); // async
       subject = built.subject;
       html    = built.html;
     }
