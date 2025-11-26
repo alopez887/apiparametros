@@ -224,9 +224,9 @@ async function inlineLogo() {
 }
 
 /* ============================================================
-   MOTOR PRINCIPAL: ENVÍO DE CORREO DE TOURS (igual que original)
+   MOTOR PRINCIPAL: ENVÍO DE CORREO DE TOURS
    ============================================================ */
-export async function enviarCorreoDestino(datos = {}) {
+export async function enviarCorreoTours(datos = {}) {
   try {
     if (!GAS_URL || !/^https:\/\/script\.google\.com\/macros\/s\//.test(GAS_URL)) {
       throw new Error('GAS_URL no configurado o inválido');
@@ -246,21 +246,19 @@ export async function enviarCorreoDestino(datos = {}) {
     const logo = await inlineLogo();
     const logoCid = logo?.cid || GEN_CID('logoEmpresa');
 
-    // 🔹 IMÁGENES DESDE BD (columna "imagen" con url1|url2)
     const destinoCid    = GEN_CID('imagenDestino');
     const transporteCid = GEN_CID('imagenTransporte');
 
+    // 🔹 URLs desde columna "imagen" (url1|url2) o campos individuales
     let urlDestino = '';
     let urlTransporte = '';
 
-    // 1) Preferimos la columna combinada `imagen` si viene con las 2 URLs
     if (datos.imagen) {
       const partes = String(datos.imagen).split('|').filter(Boolean);
       if (partes[0]) urlDestino    = forceJpgIfWix(sanitizeUrl(partes[0]));
       if (partes[1]) urlTransporte = forceJpgIfWix(sanitizeUrl(partes[1]));
     }
 
-    // 2) Fallback: si no hay `imagen`, usamos los campos individuales
     if (!urlDestino && datos.imagenDestino) {
       urlDestino = forceJpgIfWix(sanitizeUrl(datos.imagenDestino));
     }
@@ -276,7 +274,7 @@ export async function enviarCorreoDestino(datos = {}) {
       ? { url: urlTransporte, filename: 'transporte.jpg', cid: transporteCid, inline: true }
       : null;
 
-    // QR opcional (igual que antes, pero usando generarQRDestino de este proyecto)
+    // QR opcional
     let qrAttachment = null;
     const qrCid = GEN_CID('tokenQR');
     if (datos.token_qr) {
@@ -300,11 +298,17 @@ export async function enviarCorreoDestino(datos = {}) {
     // ---------- datos presentacionales ----------
     const hotel   = firstNonNil(datos.hotel, datos.hotel_llegada);
     const fecha   = firstNonNil(datos.fecha, datos.fecha_llegada);
-    const hora    = fmtHora12(firstNonNil(datos.hora, datos.hora_llegada));
+
+    // 🔹 AQUÍ: preferimos hora_salida, luego hora, luego hora_llegada
+    const hora    = fmtHora12(firstNonNil(
+      datos.hora_salida,
+      datos.hora,
+      datos.hora_llegada
+    ));
+
     const totalN  = moneyNum(datos.total_pago);
     const transpL = labelTransporte(lang, datos.tipo_transporte);
 
-    // 🔹 moneda desde backend (guardarDestino) -> 'USD' | 'MXN', default 'USD'
     const moneda = (() => {
       const m = String(datos.moneda || 'USD').toUpperCase();
       return (m === 'MXN') ? 'MXN' : 'USD';
@@ -413,7 +417,6 @@ export async function enviarCorreoDestino(datos = {}) {
       html,
       fromName: process.env.EMAIL_FROMNAME || 'Cabo Travel Solutions',
       attachments,
-      // === Idempotencia en GAS (usa folio/clave) ===
       folio: datos.folio || undefined,
       idempotencyKey: (datos.folio || datos.token_qr || undefined),
     };
@@ -481,8 +484,11 @@ export async function reenviarCorreoTours(req, res) {
       hotel_llegada: r.hotel_llegada,
       fecha: r.fecha || r.fecha_llegada,
       fecha_llegada: r.fecha_llegada,
-      hora: r.hora || r.hora_llegada,
+
+      // 🔹 AQUÍ incluimos hora_salida como principal
+      hora: r.hora_salida || r.hora || r.hora_llegada,
       hora_llegada: r.hora_llegada,
+      hora_salida: r.hora_salida,
 
       cantidad_pasajeros: r.cantidad_pasajeros || r.cantidad_pasajerosok || r.pasajeros,
 
@@ -491,7 +497,7 @@ export async function reenviarCorreoTours(req, res) {
       total_pago: r.total_pago || r.importe_total || 0,
       moneda: r.moneda || r.moneda_cobro_real || r.moneda_cobro || 'USD',
 
-      // 🔹 NUEVO: columna combinada con las 2 imágenes
+      // 🔹 columna combinada con las 2 imágenes
       imagen: r.imagen || r.imagen_tour || r.imagen_destino || '',
 
       // Fallbacks individuales (por compatibilidad)
@@ -501,10 +507,8 @@ export async function reenviarCorreoTours(req, res) {
       token_qr: r.token_qr || r.token || null,
     };
 
-    // 3) Mandar el correo usando el mismo motor
-    await enviarCorreoDestino(datos);
+    await enviarCorreoTours(datos);
 
-    // 4) Marcar como enviado en la BD solo si el correo se mandó bien
     await pool.query(
       `UPDATE reservaciones
        SET email_reservacion = 'enviado'
@@ -525,5 +529,5 @@ export async function reenviarCorreoTours(req, res) {
   }
 }
 
-// Default igual que antes: el motor de envío
-export default enviarCorreoDestino;
+// Default: el motor de envío
+export default enviarCorreoTours;
