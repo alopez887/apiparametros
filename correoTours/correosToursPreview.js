@@ -1,6 +1,10 @@
 // correoTours/correosToursPreview.js
+// Builder de VISTA PREVIA para Tours (sin GAS, sin attachments)
+// Replica el layout de correoDestino.js, pero:
+// - Usa las imágenes de reserva.imagen (separadas por '|')
+// - Genera el QR como data URL para que se vea en el iframe de preview.
 
-import generarQRTours from './generarQRTours.js';
+import { generarQRDestino } from './generarQRTours.js';
 
 // === ICONOS COMO ENTIDADES (sin emojis directos) ===
 const ICO_CHECK = '&#9989;';    // ✅
@@ -8,7 +12,7 @@ const ICO_WARN  = '&#9888;';    // ⚠
 const ICO_MAIL  = '&#128231;';  // 📧
 const ICO_PIN   = '&#128204;';  // 📌
 
-// ---------- utils ----------
+// ---------- utils compartidos ----------
 const _fmt = (v) => (v === 0 ? '0' : (v ?? '—'));
 
 function sanitizeUrl(u = '') {
@@ -202,7 +206,7 @@ export async function buildPreviewToursFromReserva(reserva = {}) {
   let qrHtml = '';
   if (reserva.token_qr) {
     try {
-      const dataUrl = await generarQRTours(reserva.token_qr, { size: 110, margin: 1 });
+      const dataUrl = await generarQRDestino(reserva.token_qr, { size: 110, margin: 1 });
       qrHtml = `
         <table role="presentation" align="center" cellspacing="0" cellpadding="0" style="margin:10px auto 0;">
           <tr>
