@@ -1,16 +1,15 @@
 // correoTours/correosToursPreview.js
-// Builder de PREVIEW para correos de TOURS (ES/EN) con QR visible (dataURL)
+// Vista previa de correo de TOURS (Destino) SIN envío a GAS,
+// usando directamente las URLs de la columna `imagen` (separadas por |)
 
-import { generarQRDestino } from './generarQRTours.js';
+function _fmt(v) {
+  return (v === 0 ? '0' : (v ?? '—'));
+}
 
-// === ICONOS COMO ENTIDADES (sin emojis directos) ===
-const ICO_CHECK = '&#9989;';    // ✅
-const ICO_WARN  = '&#9888;';    // ⚠
-const ICO_MAIL  = '&#128231;';  // 📧
-const ICO_PIN   = '&#128204;';  // 📌
-
-// ---------- utils básicos ----------
-const _fmt = (v) => (v === 0 ? '0' : (v ?? '—'));
+function normLang(v) {
+  const s = String(v || '').toLowerCase();
+  return s.startsWith('es') ? 'es' : 'en';
+}
 
 function sanitizeUrl(u = '') {
   try {
@@ -19,15 +18,17 @@ function sanitizeUrl(u = '') {
     if (s.startsWith('//')) s = 'https:' + s;
     if (s.startsWith('http://')) s = s.replace(/^http:\/\//i, 'https://');
     return s;
-  } catch { return ''; }
+  } catch {
+    return '';
+  }
 }
 
-function forceJpgIfWix(url='') {
+function forceJpgIfWix(url = '') {
   try {
     const u = new URL(url);
     if (/wixstatic\.com$/i.test(u.hostname)) {
-      if (!u.searchParams.has('format')) u.searchParams.set('format','jpg');
-      if (!u.searchParams.has('width'))  u.searchParams.set('width','1200');
+      if (!u.searchParams.has('format')) u.searchParams.set('format', 'jpg');
+      if (!u.searchParams.has('width'))  u.searchParams.set('width',  '1200');
       return u.toString();
     }
   } catch {}
@@ -36,12 +37,11 @@ function forceJpgIfWix(url='') {
 
 function moneyNum(v) {
   if (v === undefined || v === null || v === '') return null;
-  const s = String(v).replace(/[^0-9.-]/g,'').replace(/,/g,'');
+  const s = String(v).replace(/[^0-9.-]/g, '').replace(/,/g, '');
   const n = Number(s);
   return Number.isFinite(n) ? n : null;
 }
 
-// 🔹 formateo con miles y 2 decimales
 function fmtMoney(num) {
   try {
     return Number(num || 0).toLocaleString('en-US', {
@@ -53,58 +53,40 @@ function fmtMoney(num) {
   }
 }
 
-// 👉 dd/mm/aaaa (preview)
 function fmtDMY(dateLike) {
   try {
-    if (!dateLike) return '—';
     const d = new Date(dateLike);
-    if (Number.isNaN(d.getTime())) return String(dateLike);
-    const dd = String(d.getDate()).padStart(2,'0');
-    const mm = String(d.getMonth()+1).padStart(2,'0');
-    const yyyy = d.getFullYear();
+    if (isNaN(d)) return '—';
+    const dd = String(d.getUTCDate()).padStart(2, '0');
+    const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
+    const yyyy = d.getUTCFullYear();
     return `${dd}/${mm}/${yyyy}`;
   } catch {
-    return String(dateLike || '—');
+    return '—';
   }
 }
 
 function fmtHora12(hhmm) {
   try {
     if (!hhmm) return '—';
-    const [h, m='00'] = String(hhmm).split(':');
+    const [h, m = '00'] = String(hhmm).split(':');
     const H = Number(h);
     if (!Number.isFinite(H)) return hhmm;
-    const suf = H >= 12 ? 'p.m.' : 'a.m.';
-    const h12 = (H % 12) || 12;
-    return `${h12}:${m.padStart(2,'0')} ${suf}`;
-  } catch { return hhmm; }
-}
-
-function firstNonNil(...vals) {
-  for (const v of vals) {
-    if (v !== undefined && v !== null && v !== '') return v;
+    const suf  = H >= 12 ? 'p.m.' : 'a.m.';
+    const h12  = (H % 12) || 12;
+    return `${h12}:${m.padStart(2, '0')} ${suf}`;
+  } catch {
+    return hhmm;
   }
-  return null;
 }
 
-// ===== Localización =====
-function normLang(v) {
-  const s = String(v || '').toLowerCase();
-  return s.startsWith('es') ? 'es' : 'en';
-}
+// === ICONOS COMO ENTIDADES (sin emojis directos) ===
+const ICO_CHECK = '&#9989;';    // ✅
+const ICO_WARN  = '&#9888;';    // ⚠
+const ICO_MAIL  = '&#128231;';  // 📧
+const ICO_PIN   = '&#128204;';  // 📌
 
-// Traducción de tipo de transporte cuando el correo va en ES
-function labelTransporte(lang, rawCode) {
-  const code = String(rawCode || '').trim();
-  if (lang === 'es') {
-    const mapES = { Private: 'Privado', Limousine: 'Limusina', Sprinter: 'Sprinter' };
-    return mapES[code] || code;
-  }
-  // EN: devolver tal cual
-  return code;
-}
-
-// Textos ES/EN (mismos textos que el correo real de Tours)
+// Textos ES/EN (igual que en correoDestino.js)
 const T_ES = {
   title:              `${ICO_CHECK} Confirmación de Reservación de Tours`,
   sectionTitle:       'Información de la Reservación',
@@ -169,7 +151,7 @@ const T_EN = {
   `,
 };
 
-// ---------- estilos (igual layout 600px) ----------
+// CSS inline igual que el correo real
 const EMAIL_CSS = `
 <style>
   .body-cts { font-family: Arial, Helvetica, sans-serif; color:#222; }
@@ -181,113 +163,38 @@ const EMAIL_CSS = `
   }
 </style>`;
 
-// ---------- PREVIEW PRINCIPAL ----------
-export async function buildPreviewToursFromReserva(reserva) {
-  if (!reserva) {
-    return { subject: null, html: null };
+// 🔹 Builder SIN envío: solo arma {subject, html} para la vista previa
+export function buildPreviewToursFromReserva(reserva = {}) {
+  const lang = normLang(reserva.idioma || reserva.lang);
+  const T    = (lang === 'es') ? T_ES : T_EN;
+
+  // --- imágenes desde la columna `imagen` (url1|url2) ---
+  const rawImagen = String(reserva.imagen || '').trim();
+  let imgDestinoUrl = '';
+  let imgTranspUrl  = '';
+
+  if (rawImagen) {
+    const parts = rawImagen.split('|').map(s => s.trim()).filter(Boolean);
+    if (parts[0]) imgDestinoUrl = forceJpgIfWix(sanitizeUrl(parts[0]));
+    if (parts[1]) imgTranspUrl  = forceJpgIfWix(sanitizeUrl(parts[1]));
   }
 
-  // Idioma
-  const lang = normLang(reserva.idioma || reserva.idioma_cliente || reserva.lenguaje || 'es');
-  const T = (lang === 'es') ? T_ES : T_EN;
+  const hotel  = reserva.hotel || reserva.hotel_llegada || '';
+  const fecha  = reserva.fecha || reserva.fecha_llegada || reserva.fecha_reserva || '';
+  const hora   = fmtHora12(reserva.hora || reserva.hora_llegada || '');
+  const totalN = moneyNum(reserva.total_pago);
+  const moneda = String(reserva.moneda || 'USD').toUpperCase() === 'MXN' ? 'MXN' : 'USD';
 
-  // Datos presentacionales (igual filosofía que el envío real)
-  const hotel = firstNonNil(reserva.hotel, reserva.hotel_llegada);
-  const fecha = firstNonNil(reserva.fecha, reserva.fecha_llegada);
-  const hora  = fmtHora12(firstNonNil(reserva.hora, reserva.hora_llegada));
-
-  const totalN = moneyNum(reserva.total_pago || reserva.importe_total);
-
-  // 🔹 moneda: lo mismo que el envío
-  const moneda = (() => {
-    const m = String(
-      reserva.moneda ||
-      reserva.moneda_cobro_real ||
-      reserva.moneda_cobro ||
-      'USD'
-    ).toUpperCase();
-    return (m === 'MXN') ? 'MXN' : 'USD';
-  })();
-
-  const totalH = (totalN != null)
+  const totalH = totalN != null
     ? `<p style="margin:2px 0;line-height:1.35;"><strong>${T.labels.Total}:</strong> $${fmtMoney(totalN)} ${moneda}</p>`
     : '';
 
-  const destino = reserva.destino || reserva.actividad || reserva.actividad_es || '';
-  const transpL = labelTransporte(lang, reserva.tipo_transporte);
-
-  // Imagen destino / transporte (solo URLs directas, sin cid, para preview)
-  const imgDest0 = sanitizeUrl(reserva.imagen_tour || reserva.imagen || reserva.imagen_destino || '');
-  const imgDestino = imgDest0 ? forceJpgIfWix(imgDest0) : '';
-
-  const imgTrans0 = sanitizeUrl(reserva.imagen_transporte || '');
-  const imgTransporte = imgTrans0 ? forceJpgIfWix(imgTrans0) : '';
-
-  // Logo directo
-  const logoUrl = 'https://static.wixstatic.com/media/f81ced_636e76aeb741411b87c4fa8aa9219410~mv2.png';
-
-  // QR: dataURL igual que transporte preview
-  let qr = reserva.qr || '';
-  if (!qr) {
-    const token = reserva.token_qr || reserva.token || null;
-    if (token) {
-      try {
-        qr = await generarQRDestino(token, { size: 320, margin: 1 });
-      } catch (err) {
-        console.warn('[PREVIEW-TOURS] No se pudo generar QR:', err?.message);
-      }
-    }
-  }
-
-  const qrHTML = qr
-    ? `
-      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin-top:10px;">
-        <tr>
-          <td align="center">
-            <img src="${qr}" width="110" height="110"
-                 style="display:block;border-radius:8px;border:0;outline:0;text-decoration:none;"
-                 alt="QR" />
-          </td>
-        </tr>
-      </table>
-    `
-    : '';
-
-  // Bloque imágenes
-  const imagenesHTML = (imgDestino || imgTransporte)
-    ? `
-      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin-top:10px;">
-        <tr>
-          <td>
-            ${
-              imgDestino
-                ? `<img src="${imgDestino}" width="400"
-                        style="display:block;width:100%;height:auto;border-radius:8px;"
-                        alt="Destination image" />`
-                : ``
-            }
-            ${
-              imgTransporte
-                ? `<div style="height:10px;line-height:10px;font-size:0;">&nbsp;</div>
-                   <img src="${imgTransporte}" width="400"
-                        style="display:block;width:100%;height:auto;border-radius:8px;"
-                        alt="Transport image" />`
-                : ``
-            }
-          </td>
-        </tr>
-      </table>
-    `
-    : '';
-
-  // Cuerpo textos
   const html = `
     ${EMAIL_CSS}
     <table role="presentation" width="100%" cellspacing="0" cellpadding="0" class="body-cts">
       <tr>
         <td align="center" style="padding:0;margin:0;">
-          <table role="presentation" width="600" cellspacing="0" cellpadding="0"
-                 style="width:600px;max-width:600px;border:2px solid #ccc;border-radius:10px;">
+          <table role="presentation" width="600" cellspacing="0" cellpadding="0" style="width:600px;max-width:600px;border:2px solid #ccc;border-radius:10px;">
             <tr>
               <td style="padding:20px;border-radius:10px;">
                 <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin:0 0 8px 0;">
@@ -296,7 +203,10 @@ export async function buildPreviewToursFromReserva(reserva) {
                       <h2 style="color:green;margin:0;">${T.title}</h2>
                     </td>
                     <td align="right" style="vertical-align:middle;">
-                      <img src="${logoUrl}" width="180" class="logoimg" alt="Logo" />
+                      <img src="https://static.wixstatic.com/media/f81ced_636e76aeb741411b87c4fa8aa9219410~mv2.png"
+                           width="180"
+                           class="logoimg"
+                           alt="Logo" />
                     </td>
                   </tr>
                 </table>
@@ -308,27 +218,30 @@ export async function buildPreviewToursFromReserva(reserva) {
                     <p style="margin:2px 0;line-height:1.35;"><strong>${T.labels.Name}:</strong> ${_fmt(reserva.nombre_cliente || reserva.nombre)}</p>
                     ${reserva.correo_cliente ? `<p style="margin:2px 0;line-height:1.35;"><strong>${T.labels.Email}:</strong> ${reserva.correo_cliente}</p>` : ``}
                     ${reserva.telefono_cliente ? `<p style="margin:2px 0;line-height:1.35;"><strong>${T.labels.Phone}:</strong> ${reserva.telefono_cliente}</p>` : ``}
-                    ${destino ? `<p style="margin:2px 0;line-height:1.35;"><strong>${T.labels.Destination}:</strong> ${destino}</p>` : ``}
-                    ${reserva.tipo_transporte ? `<p style="margin:2px 0;line-height:1.35;"><strong>${T.labels.Transport}:</strong> ${transpL}</p>` : ``}
+                    ${reserva.destino ? `<p style="margin:2px 0;line-height:1.35;"><strong>${T.labels.Destination}:</strong> ${reserva.destino}</p>` : ``}
+                    ${reserva.tipo_transporte ? `<p style="margin:2px 0;line-height:1.35;"><strong>${T.labels.Transport}:</strong> ${reserva.tipo_transporte}</p>` : ``}
                     ${reserva.capacidad ? `<p style="margin:2px 0;line-height:1.35;"><strong>${T.labels.Capacity}:</strong> ${reserva.capacidad}</p>` : ``}
                     ${reserva.tipo_viaje ? `<p style="margin:2px 0;line-height:1.35;"><strong>${T.labels.TripType}:</strong> ${reserva.tipo_viaje}</p>` : ``}
                     ${hotel ? `<p style="margin:2px 0;line-height:1.35;"><strong>${T.labels.Hotel}:</strong> ${hotel}</p>` : ``}
                     ${fecha ? `<p style="margin:2px 0;line-height:1.35;"><strong>${T.labels.Date}:</strong> ${fmtDMY(fecha)}</p>` : ``}
                     ${hora  ? `<p style="margin:2px 0;line-height:1.35;"><strong>${T.labels.Time}:</strong> ${hora}</p>` : ``}
-                    ${reserva.cantidad_pasajeros
-                      ? `<p style="margin:2px 0;line-height:1.35;"><strong>${T.labels.Passengers}:</strong> ${reserva.cantidad_pasajeros}</p>`
-                      : ``}
+                    ${reserva.cantidad_pasajeros ? `<p style="margin:2px 0;line-height:1.35;"><strong>${T.labels.Passengers}:</strong> ${reserva.cantidad_pasajeros}</p>` : ``}
                     ${totalH}
-                    ${
-                      (reserva.nota || reserva.comentarios)
-                        ? `<p style="margin:8px 0 0;line-height:1.45;"><strong>${T.labels.Note}:</strong> ${reserva.nota || reserva.comentarios}</p>`
-                        : ``
-                    }
+                    ${reserva.nota ? `<p style="margin:8px 0 0;line-height:1.45;"><strong>${T.labels.Note}:</strong> ${reserva.nota}</p>` : ``}
                   </td></tr>
                 </table>
 
-                ${imagenesHTML}
-                ${qrHTML}
+                ${(imgDestinoUrl || imgTranspUrl) ? `
+                  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin-top:10px;">
+                    <tr>
+                      <td>
+                        ${imgDestinoUrl ? `<img src="${imgDestinoUrl}" width="400" style="display:block;width:100%;height:auto;border-radius:8px;" alt="Destination image" />` : ``}
+                        ${imgTranspUrl ? `<div style="height:10px;line-height:10px;font-size:0;">&nbsp;</div>
+                                           <img src="${imgTranspUrl}" width="400" style="display:block;width:100%;height:auto;border-radius:8px;" alt="Transport image" />` : ``}
+                      </td>
+                    </tr>
+                  </table>
+                ` : ``}
 
                 <div class="divider" style="border-top:1px solid #e5e9f0;margin:12px 0;"></div>
 
@@ -347,12 +260,12 @@ export async function buildPreviewToursFromReserva(reserva) {
           </table>
         </td>
       </tr>
-    </table>
-  `.trim();
+    </table>`;
 
-  const subject = T.subject(reserva.folio);
-
-  return { subject, html };
+  return {
+    subject: T.subject(reserva.folio),
+    html,
+  };
 }
 
 export default buildPreviewToursFromReserva;
