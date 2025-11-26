@@ -36,7 +36,7 @@ export async function listarUsuariosTransporte(req, res) {
     // ---- consulta de total ----
     const sqlCount = `
       SELECT COUNT(*) AS total
-      FROM usuarios_transporte
+      FROM usuarios_proveedor
       ${whereSql}
     `;
 
@@ -59,7 +59,7 @@ export async function listarUsuariosTransporte(req, res) {
         -- Asumimos columnas tipo timestamp/date
         to_char(creado,    'YYYY-MM-DD') AS creado,
         to_char(modificado,'YYYY-MM-DD') AS modificado
-      FROM usuarios_transporte
+      FROM usuarios_proveedor
       ${whereSql}
       ORDER BY nombre ASC
       LIMIT $${limitIndex}
