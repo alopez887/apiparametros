@@ -1,11 +1,6 @@
 // correoTours/correosToursPreview.js
-// Builder de VISTA PREVIA para Tours (sin GAS, sin attachments)
-// Replica el layout del correo real de Tours, pero:
-// - Usa las imágenes de reserva.imagen (separadas por '|')
-// - Muestra la hora
-// - Genera el QR con generarQRTours y lo inserta como data URL
 
-import { generarQRTours } from './generarQRTours.js';
+import generarQRTours from './generarQRTours.js';
 
 // === ICONOS COMO ENTIDADES (sin emojis directos) ===
 const ICO_CHECK = '&#9989;';    // ✅
