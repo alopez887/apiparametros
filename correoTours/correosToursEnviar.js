@@ -246,18 +246,35 @@ export async function enviarCorreoDestino(datos = {}) {
     const logo = await inlineLogo();
     const logoCid = logo?.cid || GEN_CID('logoEmpresa');
 
+    // 🔹 IMÁGENES DESDE BD (columna "imagen" con url1|url2)
     const destinoCid    = GEN_CID('imagenDestino');
     const transporteCid = GEN_CID('imagenTransporte');
 
-    const attDestino = (() => {
-      const u = forceJpgIfWix(sanitizeUrl(datos.imagenDestino || ''));
-      return u ? { url: u, filename: 'destino.jpg', cid: destinoCid, inline: true } : null;
-    })();
+    let urlDestino = '';
+    let urlTransporte = '';
 
-    const attTransp = (() => {
-      const u = forceJpgIfWix(sanitizeUrl(datos.imagenTransporte || ''));
-      return u ? { url: u, filename: 'transporte.jpg', cid: transporteCid, inline: true } : null;
-    })();
+    // 1) Preferimos la columna combinada `imagen` si viene con las 2 URLs
+    if (datos.imagen) {
+      const partes = String(datos.imagen).split('|').filter(Boolean);
+      if (partes[0]) urlDestino    = forceJpgIfWix(sanitizeUrl(partes[0]));
+      if (partes[1]) urlTransporte = forceJpgIfWix(sanitizeUrl(partes[1]));
+    }
+
+    // 2) Fallback: si no hay `imagen`, usamos los campos individuales
+    if (!urlDestino && datos.imagenDestino) {
+      urlDestino = forceJpgIfWix(sanitizeUrl(datos.imagenDestino));
+    }
+    if (!urlTransporte && datos.imagenTransporte) {
+      urlTransporte = forceJpgIfWix(sanitizeUrl(datos.imagenTransporte));
+    }
+
+    const attDestino = urlDestino
+      ? { url: urlDestino, filename: 'destino.jpg', cid: destinoCid, inline: true }
+      : null;
+
+    const attTransp = urlTransporte
+      ? { url: urlTransporte, filename: 'transporte.jpg', cid: transporteCid, inline: true }
+      : null;
 
     // QR opcional (igual que antes, pero usando generarQRDestino de este proyecto)
     let qrAttachment = null;
@@ -474,7 +491,11 @@ export async function reenviarCorreoTours(req, res) {
       total_pago: r.total_pago || r.importe_total || 0,
       moneda: r.moneda || r.moneda_cobro_real || r.moneda_cobro || 'USD',
 
-      imagenDestino: r.imagen_tour || r.imagen || r.imagen_destino || '',
+      // 🔹 NUEVO: columna combinada con las 2 imágenes
+      imagen: r.imagen || r.imagen_tour || r.imagen_destino || '',
+
+      // Fallbacks individuales (por compatibilidad)
+      imagenDestino: r.imagen_tour || r.imagen_destino || r.imagen || '',
       imagenTransporte: r.imagen_transporte || '',
 
       token_qr: r.token_qr || r.token || null,
