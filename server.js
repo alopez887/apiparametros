@@ -14,18 +14,24 @@ import {
   actualizarCorreoCliente,
 } from './correosReservacion.js';
 
-// 🔹 Handler para PREVIEW (usa internamente actividades / transporte)
+// 🔹 Handler para PREVIEW (usa internamente actividades / transporte / tours)
 import { previewCorreoReservacion } from './correosReservacionPreview.js';
 
-// 🔹 NUEVO: handler SOLO para reenviar correos de ACTIVIDADES
+// 🔹 Handler SOLO para reenviar correos de ACTIVIDADES
 // (antes se llamaba correosReservacionEnviar.js en la raíz)
 import {
   reenviarCorreoReservacion as reenviarCorreoActividades,
 } from './correoActividades/correoActividadesEnviar.js';
 
+// 🔹 Handler SOLO para reenviar correos de TRANSPORTE
 import {
   reenviarCorreoTransporte,
 } from './correoTransporte/correosTransporteEnviar.js';
+
+// 🔹 NUEVO: handler SOLO para reenviar correos de TOURS
+import {
+  reenviarCorreoTours,
+} from './correoTours/correosToursEnviar.js';
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
@@ -56,12 +62,16 @@ app.post('/api/correos-reservacion-error/actualizar-correo', actualizarCorreoCli
 app.get('/api/correos-reservacion-error/preview', previewCorreoReservacion);
 app.post('/api/correos-reservacion-error/preview', previewCorreoReservacion);
 
-// 🔹 ENVIAR correo al cliente (por ahora SOLO ACTIVIDADES)
+// 🔹 ENVIAR correo al cliente – ACTIVIDADES
 // Body esperado: { folio }
 // El iframe sigue pegándole a esta misma ruta.
 app.post('/api/correos-reservacion-error/enviar', reenviarCorreoActividades);
 
+// 🔹 ENVIAR correo al cliente – TRANSPORTE
 app.post('/api/correos-reservacion-error/enviar-transporte', reenviarCorreoTransporte);
+
+// 🔹 ENVIAR correo al cliente – TOURS
+app.post('/api/correos-reservacion-error/enviar-tours', reenviarCorreoTours);
 
 app.use((req, res) => {
   res.status(404).json({ error: 'Ruta no encontrada' });
