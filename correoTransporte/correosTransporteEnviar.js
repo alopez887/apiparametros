@@ -5,6 +5,7 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 import pool from '../conexion.js'; // 🔹 Para leer/actualizar reservaciones
+import { generarQRTransporte } from './generarQRTransporte.js'; // 🔹 MISMO que usa el PREVIEW
 
 const GAS_URL         = process.env.GAS_URL;                 // https://script.google.com/macros/s/XXXX/exec
 const GAS_TOKEN       = process.env.GAS_TOKEN;               // SECRET en Script Properties
@@ -198,10 +199,7 @@ async function enviarCorreoTransporte(datos){
       ? (catES || catEN || datos.tipo_transporte || '')
       : (catEN || catES || datos.tipo_transporte || '');
 
-    /* ===== MONEDA y MONTO a mostrar =====
-       - moneda: preferimos datos.moneda; si no, moneda_cobro_real | moneda_cobro | 'USD'
-       - monto:  preferimos datos.total_cobrado; si no, total_pago
-    */
+    /* ===== MONEDA y MONTO a mostrar ===== */
     const moneda = (String(
       datos.moneda || datos.moneda_cobro_real || datos.moneda_cobro || 'USD'
     ).toUpperCase() === 'MXN') ? 'MXN' : 'USD';
@@ -232,7 +230,6 @@ async function enviarCorreoTransporte(datos){
     // ======== Cuerpo (mismo orden/diseño) ========
     let cuerpoHTML = '';
     if (datos.tipo_viaje === 'Redondo') {
-      // 2 columnas (Arrival / Departure)
       cuerpoHTML += `
         <table style="width:100%;margin-bottom:10px;border-collapse:collapse;" role="presentation" cellspacing="0" cellpadding="0">
           <tr>
@@ -277,7 +274,6 @@ async function enviarCorreoTransporte(datos){
         </table>
       `.trim();
     } else {
-      // 1 columna (Llegada / Salida / Shuttle)
       cuerpoHTML += `
         ${p(L.labels.folio, datos.folio)}
         ${p(L.labels.name,  datos.nombre_cliente)}
@@ -303,7 +299,6 @@ async function enviarCorreoTransporte(datos){
     }
 
     const imagenHTML = imgUrl ? `
-      <!-- Imagen principal -->
       <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin-top:10px;border-collapse:collapse;">
         <tr>
           <td>
@@ -346,7 +341,6 @@ async function enviarCorreoTransporte(datos){
       </div>
     `.trim();
 
-    // Wrapper 600px centrado (tabla), borde 2px, radius 10, padding 24/26/32 — diseño original
     const mensajeHTML = `
       <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;">
         <tr>
@@ -364,7 +358,6 @@ async function enviarCorreoTransporte(datos){
       </table>
     `.trim();
 
-    // Adjuntos (inline por CID)
     const attachments = [{ url: logoUrl, filename: 'logo.png', inline: true, cid: 'logoEmpresa' }];
     if (imgUrl) attachments.push({ url: imgUrl, filename: 'transporte.jpg', inline: true, cid: 'imagenTransporte' });
     if (qrAttachment) attachments.push(qrAttachment);
@@ -380,7 +373,7 @@ async function enviarCorreoTransporte(datos){
       attachments
     };
 
-    DBG('POST → GAS', { to: datos.correo_cliente, subject: payload.subject, hasQR: !!qrAttachment, moneda, totalMostrar });
+    DBG('POST → GAS', { to: datos.correo_cliente, subject: payload.subject, hasQR: !!qrAttachment });
 
     if (MAIL_FAST_MODE) {
       postJSON(GAS_URL, payload, GAS_TIMEOUT_MS).catch(err => console.error('Error envío async GAS:', err.message));
@@ -404,8 +397,6 @@ async function enviarCorreoTransporte(datos){
    Handler HTTP para usar en server.js
    POST /api/correos-reservacion-error/enviar-transporte
    Body esperado: { folio }
-   Hace EXACTAMENTE lo mismo que el envío original: solo vuelve
-   a llamar enviarCorreoTransporte con datos de la BD.
    ============================================================ */
 async function reenviarCorreoTransporte(req, res) {
   try {
@@ -417,7 +408,6 @@ async function reenviarCorreoTransporte(req, res) {
       });
     }
 
-    // 1) Leer la reservación desde la BD
     const sql = `
       SELECT *
       FROM reservaciones
@@ -434,7 +424,17 @@ async function reenviarCorreoTransporte(req, res) {
 
     const r = rows[0];
 
-    // 2) Armar el objeto "datos" lo más parecido posible al envío original
+    // 🔹 AQUÍ generamos el QR IGUAL que en el PREVIEW
+    let qr = '';
+    try {
+      const token = r.token_qr || r.token || null;
+      if (token) {
+        qr = await generarQRTransporte(token);
+      }
+    } catch (err) {
+      console.warn('[MAIL-TRANS] No se pudo generar QR:', err?.message);
+    }
+
     const datos = {
       idioma: r.idioma || r.idioma_cliente || r.lenguaje || 'es',
       folio: r.folio,
@@ -442,19 +442,15 @@ async function reenviarCorreoTransporte(req, res) {
       correo_cliente: r.correo_cliente,
       telefono_cliente: r.telefono_cliente,
 
-      // Pasajeros
       cantidad_pasajeros: r.cantidad_pasajeros || r.cantidad_pasajerosok || r.pasajeros,
       pasajeros: r.pasajeros,
 
-      // Nota
       nota: r.nota || r.comentarios || r.nota_cliente || '',
       cliente: { nota: r.nota_cliente || '' },
 
-      // Tipo de viaje / transporte
       tipo_viaje: r.tipo_viaje || r.tipo_servicio,
       tipo_transporte: r.tipo_transporte,
 
-      // Nombre/categoría del servicio
       categoria: r.categoria,
       categoria_es: r.categoria_es,
       nombreEN: r.nombre_tour_en || r.actividad || '',
@@ -462,36 +458,30 @@ async function reenviarCorreoTransporte(req, res) {
 
       capacidad: r.capacidad,
 
-      // Datos de llegada
       hotel_llegada: r.hotel_llegada,
       fecha_llegada: r.fecha_llegada,
       hora_llegada: r.hora_llegada,
       aerolinea_llegada: r.aerolinea_llegada,
       vuelo_llegada: r.vuelo_llegada,
 
-      // Datos de salida
       hotel_salida: r.hotel_salida,
       fecha_salida: r.fecha_salida,
       hora_salida: r.hora_salida,
       aerolinea_salida: r.aerolinea_salida,
       vuelo_salida: r.vuelo_salida,
 
-      // Montos y moneda
       total_cobrado: r.total_cobrado,
       total_pago: r.total_pago,
       moneda: r.moneda || r.moneda_cobro_real || r.moneda_cobro,
       moneda_cobro_real: r.moneda_cobro_real,
       moneda_cobro: r.moneda_cobro,
 
-      // Imagen y QR
       imagen: r.imagen_transporte || r.imagen || '',
-      qr: r.qr_base64 || r.qr || ''
+      qr
     };
 
-    // 3) Mandar el correo usando el MISMO motor
     await enviarCorreoTransporte(datos);
 
-    // 4) Marcar como enviado en la BD solo si el correo se mandó bien
     await pool.query(
       `UPDATE reservaciones
        SET email_reservacion = 'enviado'
@@ -513,5 +503,5 @@ async function reenviarCorreoTransporte(req, res) {
 }
 
 export { enviarCorreoTransporte, reenviarCorreoTransporte };
-// ⚠ Default igual que antes: el motor de envío, por si algún otro código lo usa
 export default enviarCorreoTransporte;
+
