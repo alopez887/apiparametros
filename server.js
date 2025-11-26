@@ -33,6 +33,10 @@ import {
   reenviarCorreoTours,
 } from './correoTours/correosToursEnviar.js';
 
+import {
+  listarUsuariosTransporte,        // GET  lista por tipo_usuario = transporte (tabs, paginación)
+} from './registros/usuariosTransporte.js';
+
 const app  = express();
 const PORT = process.env.PORT || 3000;
 
@@ -72,6 +76,8 @@ app.post('/api/correos-reservacion-error/enviar-transporte', reenviarCorreoTrans
 
 // 🔹 ENVIAR correo al cliente – TOURS
 app.post('/api/correos-reservacion-error/enviar-tours', reenviarCorreoTours);
+
+app.get('/api/registros/usuarios-transporte', listarUsuariosTransporte);
 
 app.use((req, res) => {
   res.status(404).json({ error: 'Ruta no encontrada' });
