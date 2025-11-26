@@ -184,7 +184,7 @@ export async function buildPreviewToursFromReserva(reserva = {}) {
   // ------ datos base ------
   const hotel  = firstNonNil(reserva.hotel, reserva.hotel_llegada);
   const fecha  = firstNonNil(reserva.fecha, reserva.fecha_llegada);
-  const hora   = fmtHora12(firstNonNil(reserva.hora, reserva.hora_llegada));
+  const hora   = fmtHora12(firstNonNil(reserva.hora_salida, reserva.hora, reserva.hora_llegada));
   const totalN = moneyNum(reserva.total_pago);
   const transpL = labelTransporte(lang, reserva.tipo_transporte);
 
