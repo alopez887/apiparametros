@@ -25,6 +25,7 @@ function sanitizeUrl(u = '') {
     return s;
   } catch { return ''; }
 }
+
 // Forzar JPG en Wix para evitar WEBP en clientes (Outlook, etc.)
 function forceJpgIfWix(url='') {
   try {
@@ -37,6 +38,7 @@ function forceJpgIfWix(url='') {
   } catch {}
   return url;
 }
+
 // POST JSON con timeout (fetch nativo Node 18)
 async function postJSON(url, body, timeoutMs) {
   const ctrl = new AbortController();
@@ -67,9 +69,12 @@ const safeToFixed = (v) => {
 function formatoHora12(hora){
   if(!hora) return '';
   const [h,m] = String(hora).split(':');
-  const H = parseInt(h,10); const suf = H>=12?'p.m.':'a.m.'; const h12 = (H%12)||12;
+  const H = parseInt(h,10);
+  const suf = H>=12?'p.m.':'a.m.';
+  const h12 = (H%12)||12;
   return `${h12}:${m} ${suf}`;
 }
+
 function formatCurrency(monto, moneda) {
   const val = safeToFixed(monto);
   // Mantengo el estilo que ya usas: $<monto> <CÓDIGO>
@@ -155,6 +160,7 @@ function normalizeQrBase64(qr) {
   else if (mod === 3) s += '=';
   return s;
 }
+
 function buildQrAttachmentTransporte(qr) {
   const base64 = normalizeQrBase64(qr);
   if (!base64) return null;
@@ -239,7 +245,7 @@ async function enviarCorreoTransporte(datos){
             </td>
             <td style="vertical-align:top;width:48%;">
               ${p(L.labels.folio, datos.folio)}
-              ${!esShuttle ? p(L.labels.transport, categoria_i18n) : ''}   <!-- antes: datos.tipo_transporte -->
+              ${!esShuttle ? p(L.labels.transport, categoria_i18n) : ''}
               ${!esShuttle ? p(L.labels.capacity,  datos.capacidad) : ''}
               ${p(L.labels.tripType, tripType)}
               ${p(L.labels.total, formatCurrency(totalMostrar, moneda))}
@@ -277,7 +283,7 @@ async function enviarCorreoTransporte(datos){
         ${p(L.labels.name,  datos.nombre_cliente)}
         ${p(L.labels.email, datos.correo_cliente)}
         ${p(L.labels.phone, datos.telefono_cliente)}
-        ${!esShuttle ? p(L.labels.transport, categoria_i18n) : ''}        <!-- antes: datos.tipo_transporte -->
+        ${!esShuttle ? p(L.labels.transport, categoria_i18n) : ''}
         ${!esShuttle ? p(L.labels.capacity,  datos.capacidad) : ''}
         ${(datos.cantidad_pasajeros || datos.pasajeros) ? p(L.labels.passengers, (datos.cantidad_pasajeros || datos.pasajeros)) : ''}
         ${datos.hotel_llegada   ? p(L.labels.hotel,   datos.hotel_llegada)   : ''}
