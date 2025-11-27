@@ -1,4 +1,5 @@
-//crearUsuarioTransporte.js
+// registros/crearUsuarioTransporte.js
+import pool from '../conexion.js';
 
 export async function crearUsuarioTransporte(req, res) {
   try {
@@ -14,11 +15,8 @@ export async function crearUsuarioTransporte(req, res) {
 
     // ⚠️ IMPORTANTE:
     // Usa AQUÍ la MISMA TABLA y columnas que ya usas en listarUsuariosTransporte.
-    // Ejemplo típico (AJUSTA nombre de tabla/columnas si en tu SELECT están distinto):
-    //
-    //   - tabla: usuarios_transporte  (o como se llame en tu SELECT)
-    //   - columnas base: nombre, proveedor, usuario, password, tipo_usuario, activo
-    //
+    // Tabla: usuarios_transporte
+    // Columnas: nombre, proveedor, usuario, password, tipo_usuario, activo
     const sql = `
       INSERT INTO usuarios_transporte
         (nombre, proveedor, usuario, password, tipo_usuario, activo)

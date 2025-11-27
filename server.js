@@ -33,10 +33,11 @@ import {
   reenviarCorreoTours,
 } from './correoTours/correosToursEnviar.js';
 
-import {
-  listarUsuariosTransporte,
-  crearUsuarioTransporte,
-} from './registros/usuariosTransporte.js';
+// 🔹 USUARIOS TRANSPORTE
+// listar = viene de usuariosTransporte.js
+// crear = viene de crearUsuarioTransporte.js
+import { listarUsuariosTransporte } from './registros/usuariosTransporte.js';
+import { crearUsuarioTransporte }   from './registros/crearUsuarioTransporte.js';
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
@@ -78,8 +79,8 @@ app.post('/api/correos-reservacion-error/enviar-transporte', reenviarCorreoTrans
 // 🔹 ENVIAR correo al cliente – TOURS
 app.post('/api/correos-reservacion-error/enviar-tours', reenviarCorreoTours);
 
+// 🔹 USUARIOS TRANSPORTE
 app.get('/api/registros/usuarios-transporte', listarUsuariosTransporte);
-
 app.post('/api/registros/usuarios-transporte', crearUsuarioTransporte);
 
 app.use((req, res) => {
