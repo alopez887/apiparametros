@@ -18,7 +18,6 @@ import {
 import { previewCorreoReservacion } from './correosReservacionPreview.js';
 
 // 🔹 Handler SOLO para reenviar correos de ACTIVIDADES
-// (antes se llamaba correosReservacionEnviar.js en la raíz)
 import {
   reenviarCorreoReservacion as reenviarCorreoActividades,
 } from './correoActividades/correoActividadesEnviar.js';
@@ -34,15 +33,20 @@ import {
 } from './correoTours/correosToursEnviar.js';
 
 // 🔹 USUARIOS TRANSPORTE
-// listar = viene de usuariosTransporte.js
-// crear  = viene de crearUsuarioTransporte.js
-// editar / cambiar estatus = NUEVAS funciones en el mismo archivo
 import { listarUsuariosTransporte } from './registros/usuariosTransporte.js';
 import {
   crearUsuarioTransporte,
-  actualizarUsuarioTransporte,     // 👈 NUEVO
-  cambiarEstatusUsuarioTransporte // 👈 NUEVO
+  actualizarUsuarioTransporte,
+  cambiarEstatusUsuarioTransporte
 } from './registros/crearUsuarioTransporte.js';
+
+// 🔹 PARTNERS (actividades_proveedores)
+import { listarPartners } from './partners/listarPartners.js';
+import {
+  crearPartner,
+  actualizarPartner,
+  cambiarEstatusPartner
+} from './partners/crearPartner.js';
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
@@ -74,8 +78,6 @@ app.get('/api/correos-reservacion-error/preview', previewCorreoReservacion);
 app.post('/api/correos-reservacion-error/preview', previewCorreoReservacion);
 
 // 🔹 ENVIAR correo al cliente – ACTIVIDADES
-// Body esperado: { folio }
-// El iframe sigue pegándole a esta misma ruta.
 app.post('/api/correos-reservacion-error/enviar', reenviarCorreoActividades);
 
 // 🔹 ENVIAR correo al cliente – TRANSPORTE
@@ -85,17 +87,16 @@ app.post('/api/correos-reservacion-error/enviar-transporte', reenviarCorreoTrans
 app.post('/api/correos-reservacion-error/enviar-tours', reenviarCorreoTours);
 
 // 🔹 USUARIOS TRANSPORTE
-// Listar (ya existente)
 app.get('/api/registros/usuarios-transporte', listarUsuariosTransporte);
-
-// Crear (YA EXISTENTE, NO SE TOCA)
 app.post('/api/registros/usuarios-transporte', crearUsuarioTransporte);
-
-// 🔹 NUEVO: Editar datos de un usuario (nombre, proveedor, usuario, password, etc.)
 app.put('/api/registros/usuarios-transporte/:id', actualizarUsuarioTransporte);
-
-// 🔹 NUEVO: Habilitar / deshabilitar (cambiar campo activo)
 app.patch('/api/registros/usuarios-transporte/:id/activo', cambiarEstatusUsuarioTransporte);
+
+// 🔹 PARTNERS (tabla actividades_proveedores)
+app.get('/api/registros/partners', listarPartners);
+app.post('/api/registros/partners', crearPartner);
+app.put('/api/registros/partners/:id', actualizarPartner);
+app.patch('/api/registros/partners/:id/activo', cambiarEstatusPartner);
 
 app.use((req, res) => {
   res.status(404).json({ error: 'Ruta no encontrada' });
