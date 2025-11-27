@@ -35,9 +35,14 @@ import {
 
 // 🔹 USUARIOS TRANSPORTE
 // listar = viene de usuariosTransporte.js
-// crear = viene de crearUsuarioTransporte.js
+// crear  = viene de crearUsuarioTransporte.js
+// editar / cambiar estatus = NUEVAS funciones en el mismo archivo
 import { listarUsuariosTransporte } from './registros/usuariosTransporte.js';
-import { crearUsuarioTransporte }   from './registros/crearUsuarioTransporte.js';
+import {
+  crearUsuarioTransporte,
+  actualizarUsuarioTransporte,     // 👈 NUEVO
+  cambiarEstatusUsuarioTransporte // 👈 NUEVO
+} from './registros/crearUsuarioTransporte.js';
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
@@ -80,8 +85,17 @@ app.post('/api/correos-reservacion-error/enviar-transporte', reenviarCorreoTrans
 app.post('/api/correos-reservacion-error/enviar-tours', reenviarCorreoTours);
 
 // 🔹 USUARIOS TRANSPORTE
+// Listar (ya existente)
 app.get('/api/registros/usuarios-transporte', listarUsuariosTransporte);
+
+// Crear (YA EXISTENTE, NO SE TOCA)
 app.post('/api/registros/usuarios-transporte', crearUsuarioTransporte);
+
+// 🔹 NUEVO: Editar datos de un usuario (nombre, proveedor, usuario, password, etc.)
+app.put('/api/registros/usuarios-transporte/:id', actualizarUsuarioTransporte);
+
+// 🔹 NUEVO: Habilitar / deshabilitar (cambiar campo activo)
+app.patch('/api/registros/usuarios-transporte/:id/activo', cambiarEstatusUsuarioTransporte);
 
 app.use((req, res) => {
   res.status(404).json({ error: 'Ruta no encontrada' });
