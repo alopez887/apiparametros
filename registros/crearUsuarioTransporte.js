@@ -1,3 +1,5 @@
+//crearUsuarioTransporte.js
+
 export async function crearUsuarioTransporte(req, res) {
   try {
     const { nombre, proveedor, usuario, password, tipo_usuario } = req.body || {};
