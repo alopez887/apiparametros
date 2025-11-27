@@ -18,7 +18,6 @@ import {
 import { previewCorreoReservacion } from './correosReservacionPreview.js';
 
 // 🔹 Handler SOLO para reenviar correos de ACTIVIDADES
-// (antes se llamaba correosReservacionEnviar.js en la raíz)
 import {
   reenviarCorreoReservacion as reenviarCorreoActividades,
 } from './correoActividades/correoActividadesEnviar.js';
@@ -34,61 +33,145 @@ import {
 } from './correoTours/correosToursEnviar.js';
 
 // 🔹 USUARIOS TRANSPORTE
-// listar = viene de usuariosTransporte.js
-// crear = viene de crearUsuarioTransporte.js
 import { listarUsuariosTransporte } from './registros/usuariosTransporte.js';
 import { crearUsuarioTransporte }   from './registros/crearUsuarioTransporte.js';
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
 
+// 🔹 LOG de arranque
+console.log('🔧 Iniciando API-Parametros con config:', {
+  NODE_ENV: process.env.NODE_ENV || 'dev',
+  PORT,
+  PGHOST: process.env.PGHOST,
+  PGDATABASE: process.env.PGDATABASE,
+});
+
+// Config
 app.set('trust proxy', 1);
 app.use(cors());
 app.options('*', cors());
 app.use(express.json());
 
+// 🔹 LOG de cada request
+app.use((req, _res, next) => {
+  const { method, originalUrl, query, body } = req;
+  console.log(`➡️  ${method} ${originalUrl}`, {
+    query,
+    // para no llenar logs con cosas enormes, truncamos body grande
+    body:
+      body && Object.keys(body).length
+        ? JSON.stringify(body).slice(0, 500)
+        : body,
+  });
+  next();
+});
+
 app.get('/', (_req, res) => {
+  console.log('⚙️  GET /');
   res.json({ ok: true, service: 'api-parametros', msg: 'API Parámetros OK' });
 });
 
 // ===== Tipo de cambio =====
-app.get('/api/tipo-cambio', obtenerTipoCambio);
-app.post('/api/tipo-cambio', guardarTipoCambio);
+app.get('/api/tipo-cambio', (req, res) => {
+  console.log('📈 GET /api/tipo-cambio');
+  return obtenerTipoCambio(req, res);
+});
+
+app.post('/api/tipo-cambio', (req, res) => {
+  console.log('💾 POST /api/tipo-cambio body:', req.body);
+  return guardarTipoCambio(req, res);
+});
 
 // ===== Correos reservación – contador para badge =====
-app.get('/api/correos-reservacion-error', contarCorreosReservacionError);
+app.get('/api/correos-reservacion-error', (req, res) => {
+  console.log('🔢 GET /api/correos-reservacion-error');
+  return contarCorreosReservacionError(req, res);
+});
 
 // ===== Correos reservación – lista detallada para iframeMailnosend =====
-app.get('/api/correos-reservacion-error/lista', listarCorreosReservacionError);
+app.get('/api/correos-reservacion-error/lista', (req, res) => {
+  console.log('📋 GET /api/correos-reservacion-error/lista', { query: req.query });
+  return listarCorreosReservacionError(req, res);
+});
 
 // ===== Correos reservación – actualizar correo_cliente =====
-app.post('/api/correos-reservacion-error/actualizar-correo', actualizarCorreoCliente);
+app.post('/api/correos-reservacion-error/actualizar-correo', (req, res) => {
+  console.log('✏️  POST /api/correos-reservacion-error/actualizar-correo', {
+    body: req.body,
+  });
+  return actualizarCorreoCliente(req, res);
+});
 
-// 🔹 PREVIEW de correo de reservación (NO envía, solo datos crudos)
-app.get('/api/correos-reservacion-error/preview', previewCorreoReservacion);
-app.post('/api/correos-reservacion-error/preview', previewCorreoReservacion);
+// 🔹 PREVIEW de correo de reservación (GET/POST)
+app.get('/api/correos-reservacion-error/preview', (req, res) => {
+  console.log('👁️  GET /api/correos-reservacion-error/preview', {
+    query: req.query,
+  });
+  return previewCorreoReservacion(req, res);
+});
+
+app.post('/api/correos-reservacion-error/preview', (req, res) => {
+  console.log('👁️  POST /api/correos-reservacion-error/preview', {
+    body: req.body,
+  });
+  return previewCorreoReservacion(req, res);
+});
 
 // 🔹 ENVIAR correo al cliente – ACTIVIDADES
-// Body esperado: { folio }
-// El iframe sigue pegándole a esta misma ruta.
-app.post('/api/correos-reservacion-error/enviar', reenviarCorreoActividades);
+app.post('/api/correos-reservacion-error/enviar', (req, res) => {
+  console.log('📨 POST /api/correos-reservacion-error/enviar (ACTIVIDADES)', {
+    body: req.body,
+  });
+  return reenviarCorreoActividades(req, res);
+});
 
 // 🔹 ENVIAR correo al cliente – TRANSPORTE
-app.post('/api/correos-reservacion-error/enviar-transporte', reenviarCorreoTransporte);
+app.post('/api/correos-reservacion-error/enviar-transporte', (req, res) => {
+  console.log(
+    '📨 POST /api/correos-reservacion-error/enviar-transporte (TRANSPORTE)',
+    { body: req.body }
+  );
+  return reenviarCorreoTransporte(req, res);
+});
 
 // 🔹 ENVIAR correo al cliente – TOURS
-app.post('/api/correos-reservacion-error/enviar-tours', reenviarCorreoTours);
+app.post('/api/correos-reservacion-error/enviar-tours', (req, res) => {
+  console.log('📨 POST /api/correos-reservacion-error/enviar-tours (TOURS)', {
+    body: req.body,
+  });
+  return reenviarCorreoTours(req, res);
+});
 
 // 🔹 USUARIOS TRANSPORTE
-app.get('/api/registros/usuarios-transporte', listarUsuariosTransporte);
-app.post('/api/registros/usuarios-transporte', crearUsuarioTransporte);
+app.get('/api/registros/usuarios-transporte', (req, res) => {
+  console.log('👥 GET /api/registros/usuarios-transporte', {
+    query: req.query,
+  });
+  return listarUsuariosTransporte(req, res);
+});
 
+app.post('/api/registros/usuarios-transporte', (req, res) => {
+  console.log('➕ POST /api/registros/usuarios-transporte (crear usuario)', {
+    body: req.body,
+  });
+  return crearUsuarioTransporte(req, res);
+});
+
+// 404
 app.use((req, res) => {
+  console.warn('⚠️  404 Not Found:', req.method, req.originalUrl);
   res.status(404).json({ error: 'Ruta no encontrada' });
 });
 
+// Error handler global
 app.use((err, _req, res, _next) => {
-  console.error('💥 Unhandled error:', err);
+  console.error('💥 Unhandled error:', {
+    message: err?.message,
+    stack: err?.stack,
+    code: err?.code,
+    detail: err?.detail,
+  });
   res.status(500).json({ error: 'Error interno del servidor' });
 });
 
