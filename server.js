@@ -33,12 +33,12 @@ import {
 } from './correoTours/correosToursEnviar.js';
 
 // 🔹 USUARIOS TRANSPORTE
-import { listarUsuariosTransporte } from './registros/usuariosTransporte.js';
+import { listarUsuariosTransporte } from './transporte/usuariosTransporte.js';
 import {
   crearUsuarioTransporte,
   actualizarUsuarioTransporte,
   cambiarEstatusUsuarioTransporte
-} from './registros/crearUsuarioTransporte.js';
+} from './transporte/crearUsuarioTransporte.js';
 
 // 🔹 PARTNERS (actividades_proveedores)
 import { listarPartners } from './partners/listarPartners.js';
@@ -87,16 +87,10 @@ app.post('/api/correos-reservacion-error/enviar-transporte', reenviarCorreoTrans
 app.post('/api/correos-reservacion-error/enviar-tours', reenviarCorreoTours);
 
 // 🔹 USUARIOS TRANSPORTE
-app.get('/api/registros/usuarios-transporte', listarUsuariosTransporte);
-app.post('/api/registros/usuarios-transporte', crearUsuarioTransporte);
-app.put('/api/registros/usuarios-transporte/:id', actualizarUsuarioTransporte);
-app.patch('/api/registros/usuarios-transporte/:id/activo', cambiarEstatusUsuarioTransporte);
-
-// 🔹 PARTNERS (tabla actividades_proveedores)
-//app.get('/api/registros/partners', listarPartners);
-//app.post('/api/registros/partners', crearPartner);
-//app.put('/api/registros/partners/:id', actualizarPartner);
-//app.patch('/api/registros/partners/:id/activo', cambiarEstatusPartner);
+app.get('/api/transporte/usuarios-transporte', listarUsuariosTransporte);
+app.post('/api/transporte/usuarios-transporte', crearUsuarioTransporte);
+app.put('/api/transporte/usuarios-transporte/:id', actualizarUsuarioTransporte);
+app.patch('/api/transporte/usuarios-transporte/:id/activo', cambiarEstatusUsuarioTransporte);
 
 // 🔹 PARTNERS (tabla actividades_proveedores)
 app.get('/api/partners', listarPartners);
