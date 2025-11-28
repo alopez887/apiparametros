@@ -93,10 +93,16 @@ app.put('/api/registros/usuarios-transporte/:id', actualizarUsuarioTransporte);
 app.patch('/api/registros/usuarios-transporte/:id/activo', cambiarEstatusUsuarioTransporte);
 
 // 🔹 PARTNERS (tabla actividades_proveedores)
-app.get('/api/registros/partners', listarPartners);
-app.post('/api/registros/partners', crearPartner);
-app.put('/api/registros/partners/:id', actualizarPartner);
-app.patch('/api/registros/partners/:id/activo', cambiarEstatusPartner);
+//app.get('/api/registros/partners', listarPartners);
+//app.post('/api/registros/partners', crearPartner);
+//app.put('/api/registros/partners/:id', actualizarPartner);
+//app.patch('/api/registros/partners/:id/activo', cambiarEstatusPartner);
+
+// 🔹 PARTNERS (tabla actividades_proveedores)
+app.get('/api/partners', listarPartners);
+app.post('/api/partners', crearPartner);
+app.put('/api/partners/:id', actualizarPartner);
+app.patch('/api/partners/:id/activo', cambiarEstatusPartner);
 
 app.use((req, res) => {
   res.status(404).json({ error: 'Ruta no encontrada' });

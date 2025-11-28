@@ -23,7 +23,7 @@ function normalizarEmailsCC(value) {
 }
 
 /**
- * POST /api/registros/partners
+ * POST /api/partners
  * Body: { nombre, email_contacto, telefono_contacto?, emails_cc? }
  */
 export async function crearPartner(req, res) {
@@ -92,7 +92,7 @@ export async function crearPartner(req, res) {
 }
 
 /**
- * PUT /api/registros/partners/:id
+ * PUT /api/partners/:id
  * Body: { nombre, email_contacto, telefono_contacto?, emails_cc? }
  */
 export async function actualizarPartner(req, res) {
@@ -182,7 +182,7 @@ export async function actualizarPartner(req, res) {
 }
 
 /**
- * PATCH /api/registros/partners/:id/activo
+ * PATCH /api/partners/:id/activo
  * Body opcional: { activo: true/false }
  * - Si mando activo, solo lo pone en ese valor.
  * - Si no mando nada, hace toggle.

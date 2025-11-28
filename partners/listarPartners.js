@@ -2,7 +2,7 @@
 import pool from '../conexion.js';
 
 /**
- * GET /api/registros/partners
+ * GET /api/partners
  * Query params:
  *   - page   (opcional, default 1)
  *   - limit  (opcional, default 10)
