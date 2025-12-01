@@ -1,5 +1,5 @@
-// actualizarUsuarioPartner.js
-import pool from './conexion.js';
+// /partners/actualizarUsuarioPartner.js
+import pool from '../conexion.js';
 
 export async function actualizarUsuarioPartner(req, res) {
   const id = Number(req.params.id);
@@ -35,13 +35,11 @@ export async function actualizarUsuarioPartner(req, res) {
       });
     }
 
-    // 👇 Ajusta el nombre de la tabla si en tu BD se llama diferente
-    // por ejemplo: usuarios_actividades, usuarios_partners, etc.
+    // OJO: ajusta el nombre real de tu tabla aquí
     let sql;
     let values;
 
     if (password && String(password).trim() !== '') {
-      // Actualizar también la contraseña
       sql = `
         UPDATE usuarios_actividades
         SET
@@ -71,7 +69,6 @@ export async function actualizarUsuarioPartner(req, res) {
         id,
       ];
     } else {
-      // Sin tocar la contraseña
       sql = `
         UPDATE usuarios_actividades
         SET

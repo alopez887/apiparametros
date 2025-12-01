@@ -50,11 +50,8 @@ import {
 
 // 🔹 USUARIOS PARTNERS
 import { listarUsuariosPartners } from './partners/usuariosPartners.js';
-import {
-  //crearUsuarioPartners,
-  actualizarUsuarioPartners
-  //cambiarEstatusUsuarioPartners
-} from './partners/crearUsuarioPartners.js';
+import { actualizarUsuarioPartner } from './partners/actualizarUsuarioPartner.js';
+
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
