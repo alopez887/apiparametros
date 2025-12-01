@@ -51,6 +51,7 @@ import {
 // 🔹 USUARIOS PARTNERS
 import { listarUsuariosPartners } from './partners/usuariosPartners.js';
 import { actualizarUsuarioPartner } from './partners/actualizarUsuarioPartner.js';
+import { crearUsuarioPartner }     from './partners/crearUsuarioPartner.js';
 
 
 const app  = express();
@@ -106,6 +107,7 @@ app.patch('/api/partners/:id/activo', cambiarEstatusPartner);
 // 🔹 USUARIOS PARTNERS (tabla actividades_usuarios)
 app.get('/api/partners/usuarios-partners', listarUsuariosPartners);
 app.put('/api/partners/usuarios-partners/:id', actualizarUsuarioPartner);
+app.post('/api/partners/usuarios-partners', crearUsuarioPartner);
 
 app.use((req, res) => {
   res.status(404).json({ error: 'Ruta no encontrada' });
