@@ -1,7 +1,6 @@
 // registros/usuariosTransporte.js
 import pool from '../conexion.js';
 
-
 export async function listarUsuariosTransporte(req, res) {
   const allowedTipos = ['representante', 'chofer', 'supervisor', 'administrador'];
 
@@ -56,9 +55,8 @@ export async function listarUsuariosTransporte(req, res) {
         password,
         tipo_usuario,
         activo,
-        -- Asumimos columnas tipo timestamp/date
-        to_char(creado,    'YYYY-MM-DD') AS creado,
-        to_char(modificado,'YYYY-MM-DD') AS modificado
+        creado,
+        modificado
       FROM usuarios_proveedor
       ${whereSql}
       ORDER BY nombre ASC
