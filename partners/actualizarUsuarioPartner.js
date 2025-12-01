@@ -41,7 +41,7 @@ export async function actualizarUsuarioPartner(req, res) {
 
     if (password && String(password).trim() !== '') {
       sql = `
-        UPDATE usuarios_actividades
+        UPDATE actividades_usuarios
         SET
           nombre       = $1,
           proveedor_id = $2,
@@ -70,7 +70,7 @@ export async function actualizarUsuarioPartner(req, res) {
       ];
     } else {
       sql = `
-        UPDATE usuarios_actividades
+        UPDATE actividades_usuarios
         SET
           nombre       = $1,
           proveedor_id = $2,
