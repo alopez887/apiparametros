@@ -54,6 +54,8 @@ import { actualizarUsuarioPartner } from './partners/actualizarUsuarioPartner.js
 import { crearUsuarioPartner }     from './partners/crearUsuarioPartner.js';
 import { estatusUsuarioPartners } from './partners/estatusUsuarioPartners.js';
 
+// 🔹 ACTIVIDADES
+import { listarActividades } from './actividades/listarActividades.js';
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
@@ -110,6 +112,9 @@ app.get('/api/partners/usuarios-partners', listarUsuariosPartners);
 app.put('/api/partners/usuarios-partners/:id', actualizarUsuarioPartner);
 app.post('/api/partners/usuarios-partners', crearUsuarioPartner);
 app.patch('/api/partners/usuarios-partners/:id/estatus', estatusUsuarioPartners);
+
+// 🔹 ACTIVIDADES (tabla tours)
+app.get('/api/actividades/listar-actividades', listarActividades);
 
 app.use((req, res) => {
   res.status(404).json({ error: 'Ruta no encontrada' });
