@@ -1,5 +1,5 @@
 // estatusUsuarioPartners.js
-import pool from './conexion.js';
+import pool from '../conexion.js';
 
 /**
  * 🔹 CAMBIAR ESTATUS ACTIVO DE USUARIO DE ACTIVIDADES
