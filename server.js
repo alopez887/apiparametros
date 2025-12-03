@@ -116,6 +116,7 @@ app.patch('/api/partners/usuarios-partners/:id/estatus', estatusUsuarioPartners)
 
 // 🔹 ACTIVIDADES (tabla tours)
 app.get('/api/actividades/listar-actividades', listarActividades);
+app.get('/api/actividades/listar-partners', listarPartners);
 
 app.use((req, res) => {
   res.status(404).json({ error: 'Ruta no encontrada' });
