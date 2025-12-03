@@ -1,4 +1,4 @@
-// partners/listarPartners.js
+// actividades/listarPartners.js
 import pool from '../conexion.js';
 
 export async function listarPartners(req, res) {

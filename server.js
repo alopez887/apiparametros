@@ -57,6 +57,7 @@ import { estatusUsuarioPartners } from './partners/estatusUsuarioPartners.js';
 // 🔹 ACTIVIDADES
 // ⬇️ SOLO CAMBIA ESTA LÍNEA (ruta nueva)
 import { listarActividades } from './actividades/actividadestandar/listarActividades.js';
+import { listarPartners } from './actividades/listarParners.js';
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
