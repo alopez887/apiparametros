@@ -66,6 +66,7 @@ export async function listarPartners(req, res) {
     return res.json({
       ok: true,
       rows,
+	  data: rows,
       total,
       page: pageNum,
       totalPages
