@@ -1,7 +1,7 @@
 // actividades/listarPartners.js
 import pool from '../conexion.js';
 
-export async function listarPartners(req, res) {
+export async function listarPartnersAct(req, res) {
   let { page, limit, search } = req.query || {};
   let pageNum  = parseInt(page, 10);
   let pageSize = parseInt(limit, 10);
@@ -72,7 +72,7 @@ export async function listarPartners(req, res) {
       totalPages
     });
   } catch (err) {
-    console.error('❌ listarPartners error:', err);
+    console.error('❌ listarPartnersAct error:', err);
     return res.status(500).json({
       ok: false,
       error: 'Error al listar partners'
