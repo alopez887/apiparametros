@@ -54,14 +54,15 @@ import { actualizarUsuarioPartner } from './partners/actualizarUsuarioPartner.js
 import { crearUsuarioPartner }     from './partners/crearUsuarioPartner.js';
 import { estatusUsuarioPartners } from './partners/estatusUsuarioPartners.js';
 
-// 🔹 ACTIVIDADES (tabla tours)
+// 🔹 ACTIVIDADES (tabla tours) Estandar
 import { listarActividades } from './actividades/actividadestandar/listarActividades.js';
 import { listarPartnersAct } from './actividades/listarPartners.js';
 import { actualizarActividad } from './actividades/actividadestandar/actualizarActividad.js';
 import { agregarActividadEstandar } from './actividades/actividadestandar/agregarActividadestandar.js';
-
-// 🔹 NUEVO: ACTIVAR/DESACTIVAR actividad estándar
 import { cambiarEstatusActividadEstandar } from './actividades/actividadestandar/activarActEstandar.js';
+
+// 🔹 ACTIVIDADES (tabla tours) Duracion
+import { listarActividadesDuracion } from './actividades/actividadduracion/listarActividadesDuracion.js';
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
@@ -125,6 +126,9 @@ app.get('/api/actividades/listar-partners', listarPartnersAct);
 app.put('/api/actividades/:id', actualizarActividad);
 app.post('/api/actividades', agregarActividadEstandar);
 app.patch('/api/actividades/:id/estatus', cambiarEstatusActividadEstandar);
+
+// 🔹 ACTIVIDADES (tabla tours) ESTANDAR
+app.get('/api/actividades/listar-actividades', listarActividadesDuracion);
 
 app.use((req, res) => {
   res.status(404).json({ error: 'Ruta no encontrada' });
