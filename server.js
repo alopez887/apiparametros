@@ -54,12 +54,14 @@ import { actualizarUsuarioPartner } from './partners/actualizarUsuarioPartner.js
 import { crearUsuarioPartner }     from './partners/crearUsuarioPartner.js';
 import { estatusUsuarioPartners } from './partners/estatusUsuarioPartners.js';
 
-// 🔹 ACTIVIDADES
-// ⬇️ SOLO CAMBIA ESTA LÍNEA (ruta nueva)
+// 🔹 ACTIVIDADES (tabla tours)
 import { listarActividades } from './actividades/actividadestandar/listarActividades.js';
 import { listarPartnersAct } from './actividades/listarPartners.js';
 import { actualizarActividad } from './actividades/actividadestandar/actualizarActividad.js';
 import { agregarActividadEstandar } from './actividades/actividadestandar/agregarActividadestandar.js';
+
+// 🔹 NUEVO: ACTIVAR/DESACTIVAR actividad estándar
+import { cambiarEstatusActividadEstandar } from './actividades/actividadestandar/activarActEstandar.js';
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
@@ -117,11 +119,12 @@ app.put('/api/partners/usuarios-partners/:id', actualizarUsuarioPartner);
 app.post('/api/partners/usuarios-partners', crearUsuarioPartner);
 app.patch('/api/partners/usuarios-partners/:id/estatus', estatusUsuarioPartners);
 
-// 🔹 ACTIVIDADES (tabla tours)
+// 🔹 ACTIVIDADES (tabla tours) ESTANDAR
 app.get('/api/actividades/listar-actividades', listarActividades);
 app.get('/api/actividades/listar-partners', listarPartnersAct);
 app.put('/api/actividades/:id', actualizarActividad);
 app.post('/api/actividades', agregarActividadEstandar);
+app.patch('/api/actividades/:id/estatus', cambiarEstatusActividadEstandar);
 
 app.use((req, res) => {
   res.status(404).json({ error: 'Ruta no encontrada' });
