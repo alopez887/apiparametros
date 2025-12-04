@@ -58,6 +58,7 @@ import { estatusUsuarioPartners } from './partners/estatusUsuarioPartners.js';
 // ⬇️ SOLO CAMBIA ESTA LÍNEA (ruta nueva)
 import { listarActividades } from './actividades/actividadestandar/listarActividades.js';
 import { listarPartnersAct } from './actividades/listarPartners.js';
+import { actualizarActividad } from './actividades/actividadestandar/actualizarActividad.js';
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
@@ -118,6 +119,7 @@ app.patch('/api/partners/usuarios-partners/:id/estatus', estatusUsuarioPartners)
 // 🔹 ACTIVIDADES (tabla tours)
 app.get('/api/actividades/listar-actividades', listarActividades);
 app.get('/api/actividades/listar-partners', listarPartnersAct);
+app.put('/api/actividades/:id', actualizarActividad);
 
 app.use((req, res) => {
   res.status(404).json({ error: 'Ruta no encontrada' });
