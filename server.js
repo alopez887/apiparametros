@@ -59,6 +59,7 @@ import { estatusUsuarioPartners } from './partners/estatusUsuarioPartners.js';
 import { listarActividades } from './actividades/actividadestandar/listarActividades.js';
 import { listarPartnersAct } from './actividades/listarPartners.js';
 import { actualizarActividad } from './actividades/actividadestandar/actualizarActividad.js';
+import { agregarActividadEstandar } from './actividades/actividadestandar/agregarActividadestandar.js';
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
@@ -120,6 +121,7 @@ app.patch('/api/partners/usuarios-partners/:id/estatus', estatusUsuarioPartners)
 app.get('/api/actividades/listar-actividades', listarActividades);
 app.get('/api/actividades/listar-partners', listarPartnersAct);
 app.put('/api/actividades/:id', actualizarActividad);
+app.post('/api/actividades', agregarActividadEstandar);
 
 app.use((req, res) => {
   res.status(404).json({ error: 'Ruta no encontrada' });
