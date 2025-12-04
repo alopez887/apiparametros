@@ -61,7 +61,7 @@ import { actualizarActividad } from './actividades/actividadestandar/actualizarA
 import { agregarActividadEstandar } from './actividades/actividadestandar/agregarActividadestandar.js';
 import { cambiarEstatusActividadEstandar } from './actividades/actividadestandar/activarActEstandar.js';
 
-// 🔹 ACTIVIDADES (tabla tours) Duracion
+// 🔹 ACTIVIDADES (tabla tourduracion) Duracion
 import { listarActividadesDuracion } from './actividades/actividadduracion/listarActividadesDuracion.js';
 
 const app  = express();
@@ -127,8 +127,8 @@ app.put('/api/actividades/:id', actualizarActividad);
 app.post('/api/actividades', agregarActividadEstandar);
 app.patch('/api/actividades/:id/estatus', cambiarEstatusActividadEstandar);
 
-// 🔹 ACTIVIDADES (tabla tours) ESTANDAR
-app.get('/api/actividades/listar-actividades', listarActividadesDuracion);
+// 🔹 ACTIVIDADES (tabla tourDURACION) DURACION
+app.get('/api/actividades-duracion/listar-actividades', listarActividadesDuracion);
 
 app.use((req, res) => {
   res.status(404).json({ error: 'Ruta no encontrada' });

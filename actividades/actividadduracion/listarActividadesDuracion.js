@@ -1,4 +1,4 @@
-// ./actividades/actividadestandar/listarActividades.js
+// ./actividades/actividadduracion/listarActividades.js
 import pool from '../../conexion.js'; // 👈 OJO: subir dos niveles desde actividadestandar
 
 export const listarActividadesDuracion = async (req, res) => {
@@ -18,10 +18,10 @@ export const listarActividadesDuracion = async (req, res) => {
       data: rows,
     });
   } catch (error) {
-    console.error('❌ listarActividades error:', error);
+    console.error('❌ listarActividadesDuracion error:', error);
     return res.status(500).json({
       ok: false,
-      mensaje: 'Error al obtener la lista de actividades',
+      mensaje: 'Error al obtener la lista de actividades por duracion',
       error: error.message,
     });
   }
