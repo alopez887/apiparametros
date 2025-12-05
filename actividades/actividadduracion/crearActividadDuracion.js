@@ -67,6 +67,23 @@ export async function crearActividadDuracion(req, res) {
       return res.status(400).json({ error: 'Faltan campos requeridos: codigo, nombre, duracion, moneda' });
     }
 
+    // ===== PRE-CHECK: código único en toda la tabla =====
+    {
+      const { rows } = await pool.query(
+        `SELECT 1
+           FROM tourduracion
+          WHERE LOWER(TRIM(codigo)) = LOWER(TRIM($1))
+          LIMIT 1`,
+        [codigo]
+      );
+      if (rows.length) {
+        return res.status(409).json({
+          error: 'Error: El código que intentas registrar ya existe. Favor de validar.',
+          code: 'duplicate_codigo'
+        });
+      }
+    }
+
     // ===== Resolver actividad_id (columna TEXT) =====
     const mode = String(groupMode || 'nuevo').toLowerCase(); // por default creamos grupo nuevo
     let actividadIdFinal = null;

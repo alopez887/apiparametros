@@ -4,6 +4,7 @@ import pool from '../../conexion.js';
 export async function actualizarActividadDuracion(req, res) {
   try {
     const { id } = req.params;
+
     const toNumberOrNull = (v) => {
       if (v === '' || v === undefined || v === null) return null;
       const n = Number(String(v).replace(/[^0-9.\-]/g, ''));
@@ -43,6 +44,24 @@ export async function actualizarActividadDuracion(req, res) {
     if (!id) return res.status(400).json({ error: 'Id requerido' });
     if (!codigo || !nombre || !duracion || !moneda) {
       return res.status(400).json({ error: 'Faltan campos requeridos: codigo, nombre, duracion, moneda' });
+    }
+
+    // ===== PRE-CHECK: código único en toda la tabla (excluyendo el propio id) =====
+    {
+      const { rows } = await pool.query(
+        `SELECT 1
+           FROM tourduracion
+          WHERE LOWER(TRIM(codigo)) = LOWER(TRIM($1))
+            AND id <> $2
+          LIMIT 1`,
+        [codigo, id]
+      );
+      if (rows.length) {
+        return res.status(409).json({
+          error: 'Error: El código que intentas registrar ya existe. Favor de validar.',
+          code: 'duplicate_codigo'
+        });
+      }
     }
 
     const sql = `
