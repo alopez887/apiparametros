@@ -63,7 +63,7 @@ import { cambiarEstatusActividadEstandar } from './actividades/actividadestandar
 
 // 🔹 ACTIVIDADES (tabla tourduracion) Duracion
 import { listarActividadesDuracion } from './actividades/actividadduracion/listarActividadesDuracion.js';
-import { agregarActividadDuracion } from './actividades/actividadduracion/agregarActividadDuracion.js';
+import { crearActividadDuracion }    from './actividades/actividadduracion/crearActividadDuracion.js';
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
@@ -130,8 +130,7 @@ app.patch('/api/actividades/:id/estatus', cambiarEstatusActividadEstandar);
 
 // 🔹 ACTIVIDADES (tabla tourDURACION) DURACION
 app.get('/api/actividades-duracion/listar-actividades', listarActividadesDuracion);
-app.post('/api/actividades-duracion', agregarActividadDuracion);        // ← para AGREGAR (lo que llama el front)
-app.put('/api/actividades-duracion/:id', agregarActividadDuracion); 
+app.post('/api/actividades-duracion', crearActividadDuracion);  // ← crear (POST)
 
 
 app.use((req, res) => {
