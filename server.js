@@ -64,6 +64,8 @@ import { cambiarEstatusActividadEstandar } from './actividades/actividadestandar
 // 🔹 ACTIVIDADES (tabla tourduracion) Duracion
 import { listarActividadesDuracion } from './actividades/actividadduracion/listarActividadesDuracion.js';
 import { crearActividadDuracion }   from './actividades/actividadduracion/crearActividadDuracion.js';
+import { actualizarActividadDuracion } from './actividades/actividadduracion/actualizarActividadDuracion.js';
+import { cambiarEstatusActividadDuracion } from './actividades/actividadduracion/estatusActividadDuracion.js';
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
@@ -131,6 +133,8 @@ app.patch('/api/actividades/:id/estatus', cambiarEstatusActividadEstandar);
 // 🔹 ACTIVIDADES (tabla tourDURACION) DURACION
 app.get('/api/actividades-duracion/listar-actividades', listarActividadesDuracion);
 app.post('/api/actividades-duracion', crearActividadDuracion);
+app.put('/api/actividades-duracion/:id', actualizarActividadDuracion);
+app.patch('/api/actividades-duracion/:id/estatus', cambiarEstatusActividadDuracion);
 
 
 app.use((req, res) => {

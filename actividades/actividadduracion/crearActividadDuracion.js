@@ -29,8 +29,8 @@ export async function crearActividadDuracion(req, res) {
     const toBoolOrNull = (v) => {
       if (v === undefined || v === null || v === '') return null;
       const s = String(v).toLowerCase();
-      if (['1','true','t','activo','active'].includes(s)) return true;
-      if (['0','false','f','inactivo','inactive'].includes(s)) return false;
+      if (['1','true','t','activo','active','yes','y'].includes(s)) return true;
+      if (['0','false','f','inactivo','inactive','no','n'].includes(s)) return false;
       return null;
     };
 
@@ -120,7 +120,32 @@ export async function crearActividadDuracion(req, res) {
     });
   } catch (err) {
     console.error('❌ crearActividadDuracion:', err);
-    return res.status(500).json({ error: 'Error al crear actividad por duración' });
+
+    // Duplicados (unique_violation)
+    if (err && err.code === '23505') {
+      let msg = 'Registro duplicado.';
+      const c = String(err.constraint || '').toLowerCase();
+      const detail = String(err.detail || '').toLowerCase();
+
+      if (c.includes('uk_tourduracion_actividad_duracion') || detail.includes('(actividad_id, duracion)')) {
+        msg = 'Error: La duración que intentas registrar ya existe en ese grupo. Favor de validar.';
+      } else if (
+        c.includes('tourduracion_codigo_key') ||
+        c.includes('uk_tourduracion_codigo') ||
+        detail.includes('(codigo)')
+      ) {
+        msg = 'Error: El código que intentas registrar ya existe. Favor de validar.';
+      }
+
+      return res.status(409).json({
+        error: msg,
+        code: 'duplicate',
+        constraint: err.constraint || null,
+        detail: err.detail || null
+      });
+    }
+
+    return res.status(500).json({ error: 'Error interno al crear actividad por duración' });
   }
 }
 
