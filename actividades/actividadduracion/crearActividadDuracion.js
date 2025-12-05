@@ -13,59 +13,84 @@ import pool from '../../conexion.js';
  *   estatus              // (opcional) true|false|'activo'|'inactivo'
  * }
  */
+
+// === Valida existencia global del código en TODO el catálogo ===
+async function codigoExisteEnCatalogo(client, codigo) {
+  // ⬇⬇⬇ Ajusta los nombres de tablas si en tu BD tienen otros nombres ⬇⬇⬇
+  const q = `
+    SELECT EXISTS (
+      SELECT 1 FROM tourduracion WHERE LOWER(codigo) = LOWER($1)
+      UNION ALL
+      SELECT 1 FROM tour_pax     WHERE LOWER(codigo) = LOWER($1)
+      UNION ALL
+      SELECT 1 FROM tours        WHERE LOWER(codigo) = LOWER($1)
+      UNION ALL
+      SELECT 1 FROM tours_combo  WHERE LOWER(codigo) = LOWER($1)
+    ) AS exists
+  `;
+  const { rows } = await client.query(q, [codigo]);
+  return rows?.[0]?.exists === true;
+}
+
 export async function crearActividadDuracion(req, res) {
+  // ===== Normalizadores =====
+  const toNumberOrNull = (v) => {
+    if (v === '' || v === undefined || v === null) return null;
+    const n = Number(String(v).replace(/[^0-9.\-]/g, ''));
+    return Number.isFinite(n) ? n : null;
+  };
+  const toTextOrNull = (v) => {
+    if (v === undefined || v === null) return null;
+    const s = String(v).trim();
+    return s === '' ? null : s;
+  };
+  const toBoolOrNull = (v) => {
+    if (v === undefined || v === null || v === '') return null;
+    const s = String(v).toLowerCase();
+    if (['1','true','t','activo','active','yes','y'].includes(s)) return true;
+    if (['0','false','f','inactivo','inactive','no','n'].includes(s)) return false;
+    return null;
+  };
+
+  // ===== Body =====
+  let {
+    codigo,
+    nombre,
+    duracion,
+    duracion_es,
+    precio_adulto,
+    precionormal_adulto,
+    precioopc_adulto,
+    moneda,
+    proveedor,
+    actividad_id,
+    groupMode,   // 'existente' | 'nuevo' | 'none'
+    estatus,     // opcional
+  } = req.body ?? {};
+
+  // ===== Limpieza =====
+  codigo       = toTextOrNull(codigo);
+  nombre       = toTextOrNull(nombre);
+  duracion     = toTextOrNull(duracion);
+  duracion_es  = toTextOrNull(duracion_es);
+  precio_adulto        = toNumberOrNull(precio_adulto);
+  precionormal_adulto  = toNumberOrNull(precionormal_adulto);
+  precioopc_adulto     = toNumberOrNull(precioopc_adulto);
+  moneda       = (toTextOrNull(moneda) || 'USD').toUpperCase();
+  proveedor    = toTextOrNull(proveedor);
+  estatus      = toBoolOrNull(estatus);
+
+  // Requeridos mínimos
+  if (!codigo || !nombre || !duracion || !moneda) {
+    return res.status(400).json({ error: 'Faltan campos requeridos: codigo, nombre, duracion, moneda' });
+  }
+
+  const client = await pool.connect();
   try {
-    // ===== Normalizadores =====
-    const toNumberOrNull = (v) => {
-      if (v === '' || v === undefined || v === null) return null;
-      const n = Number(String(v).replace(/[^0-9.\-]/g, ''));
-      return Number.isFinite(n) ? n : null;
-    };
-    const toTextOrNull = (v) => {
-      if (v === undefined || v === null) return null;
-      const s = String(v).trim();
-      return s === '' ? null : s;
-    };
-    const toBoolOrNull = (v) => {
-      if (v === undefined || v === null || v === '') return null;
-      const s = String(v).toLowerCase();
-      if (['1','true','t','activo','active','yes','y'].includes(s)) return true;
-      if (['0','false','f','inactivo','inactive','no','n'].includes(s)) return false;
-      return null;
-    };
+    await client.query('BEGIN');
 
-    // ===== Body =====
-    let {
-      codigo,
-      nombre,
-      duracion,
-      duracion_es,
-      precio_adulto,
-      precionormal_adulto,
-      precioopc_adulto,
-      moneda,
-      proveedor,
-      actividad_id,
-      groupMode,   // 'existente' | 'nuevo' | 'none'
-      estatus,     // opcional
-    } = req.body ?? {};
-
-    // ===== Limpieza =====
-    codigo       = toTextOrNull(codigo);
-    nombre       = toTextOrNull(nombre);
-    duracion     = toTextOrNull(duracion);
-    duracion_es  = toTextOrNull(duracion_es);
-    precio_adulto        = toNumberOrNull(precio_adulto);
-    precionormal_adulto  = toNumberOrNull(precionormal_adulto);
-    precioopc_adulto     = toNumberOrNull(precioopc_adulto);
-    moneda       = (toTextOrNull(moneda) || 'USD').toUpperCase();
-    proveedor    = toTextOrNull(proveedor);
-    estatus      = toBoolOrNull(estatus);
-
-    // Requeridos mínimos
-    if (!codigo || !nombre || !duracion || !moneda) {
-      return res.status(400).json({ error: 'Faltan campos requeridos: codigo, nombre, duracion, moneda' });
-    }
+    // 🔒 Lock por código (evita que dos peticiones creen el mismo código simultáneamente)
+    await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [codigo]);
 
     // ===== Resolver actividad_id (columna TEXT) =====
     const mode = String(groupMode || 'nuevo').toLowerCase(); // por default creamos grupo nuevo
@@ -75,12 +100,13 @@ export async function crearActividadDuracion(req, res) {
       // Debe venir un ID numérico válido
       const parsed = Number(actividad_id);
       if (!Number.isFinite(parsed) || parsed <= 0) {
+        await client.query('ROLLBACK');
         return res.status(400).json({ error: 'actividad_id inválido para groupMode "existente"' });
       }
       actividadIdFinal = String(parsed); // columna es TEXT, guardamos como texto
     } else {
-      // 'nuevo' o 'none' => sacar consecutivo numérico: MAX(actividad_id::int) + 1
-      const { rows } = await pool.query(`
+      // 'nuevo' o 'none' => sacar consecutivo numérico: MAX(actividad_id::int) + 1 en tourduracion
+      const { rows } = await client.query(`
         SELECT COALESCE(MAX(actividad_id::int), 0) + 1 AS next
         FROM tourduracion
         WHERE actividad_id ~ '^[0-9]+$'
@@ -88,25 +114,35 @@ export async function crearActividadDuracion(req, res) {
       actividadIdFinal = String(Number(rows?.[0]?.next) || 1); // guardar como texto
     }
 
-    // ===== Validación previa combinada (sin depender del unique de la BD) =====
-    // - codigo debe ser único en TODA la tabla (insensible a mayúsculas/minúsculas)
-    // - (actividad_id, duracion) debe ser único dentro del grupo
-    const checkSql = `
-      SELECT
-        EXISTS(SELECT 1 FROM tourduracion WHERE LOWER(codigo) = LOWER($1))                                          AS dup_codigo,
-        EXISTS(SELECT 1 FROM tourduracion WHERE actividad_id = $2 AND LOWER(duracion) = LOWER($3))                  AS dup_duracion
-    `;
-    const checkParams = [codigo, actividadIdFinal, duracion];
-    const chk = await pool.query(checkSql, checkParams);
-    const dupCodigo   = !!chk.rows?.[0]?.dup_codigo;
-    const dupDuracion = !!chk.rows?.[0]?.dup_duracion;
+    // ===== Validación previa combinada =====
+    // (A) Unicidad GLOBAL del "codigo" en TODO el catálogo (4 tablas)
+    const existeCodigoGlobal = await codigoExisteEnCatalogo(client, codigo);
 
-    if (dupCodigo || dupDuracion) {
+    // (B) Unicidad de (actividad_id, duracion) dentro de tourduracion
+    const { rows: chk2 } = await client.query(
+      `
+        SELECT EXISTS(
+          SELECT 1 FROM tourduracion
+          WHERE actividad_id = $1 AND LOWER(duracion) = LOWER($2)
+        ) AS dup_duracion
+      `,
+      [actividadIdFinal, duracion]
+    );
+    const dupDuracion = !!chk2?.[0]?.dup_duracion;
+
+    if (existeCodigoGlobal || dupDuracion) {
       const messages = [];
       const fields = {};
-      if (dupCodigo)   { messages.push('Error: El código que intentas registrar ya existe, favor de confirmar.'); fields.codigo = true; }
-      if (dupDuracion) { messages.push('Error: La duración que intentas registrar ya existe en ese grupo, favor de confirmar.'); fields.duracion = true; }
+      if (existeCodigoGlobal) {
+        messages.push('Error: El código que intentas registrar ya existe, favor de confirmar.');
+        fields.codigo = true;
+      }
+      if (dupDuracion) {
+        messages.push('Error: La duración que intentas registrar ya existe en ese grupo, favor de confirmar.');
+        fields.duracion = true;
+      }
 
+      await client.query('ROLLBACK');
       return res.status(409).json({
         error: messages.join(' '),
         code: 'duplicate',
@@ -137,14 +173,16 @@ export async function crearActividadDuracion(req, res) {
       moneda, proveedor, actividadIdFinal, estatus,
     ];
 
-    const result = await pool.query(sql, params);
+    const result = await client.query(sql, params);
 
+    await client.query('COMMIT');
     return res.json({
       ok: true,
       msg: 'Actividad por duración creada',
       data: result.rows[0],
     });
   } catch (err) {
+    await client.query('ROLLBACK');
     console.error('❌ crearActividadDuracion:', err);
 
     // Respaldo por si chocamos con UNIQUE de BD igualmente
@@ -172,6 +210,8 @@ export async function crearActividadDuracion(req, res) {
     }
 
     return res.status(500).json({ error: 'Error interno al crear actividad por duración' });
+  } finally {
+    client.release();
   }
 }
 
