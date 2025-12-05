@@ -38,52 +38,55 @@ const toBoolOrNull = (v) => {
 };
 
 /**
- * Devuelve dónde existe el código a nivel global (las 4 tablas del catálogo).
- * Regresa arreglo con etiquetas legibles en ES/EN.
- *  [
- *    { table:'dur'|'pax'|'anp'|'combo', id, nombre, label_es, label_en }
- *  ]
+ * Devuelve dónde existe el código a nivel global (las 4 tablas del catálogo),
+ * SIN usar columnas que no existen (nada de tp.id).
+ * Estructura de salida:
+ * [
+ *   { table:'dur'|'pax'|'anp'|'combo', nombre, label_es, label_en }
+ * ]
  */
 async function codigoDetallesGlobal(client, codigo) {
   const LABELS = {
-    anp:  { es: 'Adultos / Niños / Persona', en: 'Adults / Children / Per person' },
+    anp:  { es: 'Adultos / Niños / Persona',      en: 'Adults / Children / Per person' },
     dur:  { es: 'Actividades por duración (tiempo)', en: 'Activities by duration (time)' },
-    pax:  { es: 'Actividades por PAX (grupo)', en: 'Activities by PAX (group)' },
-    combo:{ es: 'Combos de actividades', en: 'Activity combos' },
+    pax:  { es: 'Actividades por PAX (grupo)',    en: 'Activities by PAX (group)' },
+    combo:{ es: 'Combos de actividades',          en: 'Activity combos' },
   };
 
+  // Solo leemos columnas que sabemos que existen en cada tabla.
+  // Para "nombre" usamos COALESCE sobre columnas razonables o caemos en el mismo código.
   const sql = `
     WITH q AS (SELECT LOWER(TRIM($1)) AS c)
-    SELECT cat, id, nombre FROM (
-      SELECT 'dur'  AS cat, td.id, td.nombre
+    SELECT cat, nombre FROM (
+      SELECT 'dur'  AS cat, COALESCE(td.nombre, td.codigo) AS nombre
         FROM tourduracion td, q
        WHERE LOWER(TRIM(td.codigo)) = q.c
       UNION ALL
-      SELECT 'pax'  AS cat, tp.id, COALESCE(tp.actividad, tp.codigo) AS nombre
+      SELECT 'pax'  AS cat, COALESCE(tp.actividad, tp.codigo) AS nombre
         FROM tour_pax tp, q
        WHERE LOWER(TRIM(tp.codigo)) = q.c
       UNION ALL
-      SELECT 'anp'  AS cat, t.id, COALESCE(t.nombre, t.codigo) AS nombre
+      SELECT 'anp'  AS cat, COALESCE(t.nombre, t.codigo) AS nombre
         FROM tours t, q
        WHERE LOWER(TRIM(t.codigo)) = q.c
       UNION ALL
-      SELECT 'combo' AS cat, tc.id, COALESCE(tc.nombre_combo, tc.codigo) AS nombre
+      SELECT 'combo' AS cat, COALESCE(tc.nombre_combo, tc.codigo) AS nombre
         FROM tours_combo tc, q
        WHERE LOWER(TRIM(tc.codigo)) = q.c
     ) s
-    LIMIT 20;
+    LIMIT 50;
   `;
   const { rows } = await client.query(sql, [codigo]);
+
   return rows.map(r => ({
     table: r.cat,
-    id: r.id,
     nombre: r.nombre,
     label_es: LABELS[r.cat].es,
     label_en: LABELS[r.cat].en,
   }));
 }
 
-/** true/false rápido si te basta saber que existe globalmente */
+/** true/false rápido si solo necesitas saber que existe en alguna tabla */
 async function codigoExisteEnCatalogo(client, codigo) {
   const q = `
     SELECT EXISTS (
@@ -165,7 +168,7 @@ export async function crearActividadDuracion(req, res) {
     }
 
     // ===== Validaciones previas =====
-    // (A) Global por código + catálogos donde existe
+    // (A) Global por código + catálogos donde existe (sin IDs)
     const dupList = await codigoDetallesGlobal(client, codigo);
     const existeCodigoGlobal = dupList.length > 0;
 
@@ -200,7 +203,7 @@ export async function crearActividadDuracion(req, res) {
         error: msgs.join(' '),
         code: 'duplicate',
         fields,
-        catalogs: dupList   // para el front, si lo quieres usar
+        catalogs: dupList   // opcional para el front (tabla/label/nombre)
       });
     }
 
