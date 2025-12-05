@@ -130,7 +130,8 @@ app.patch('/api/actividades/:id/estatus', cambiarEstatusActividadEstandar);
 
 // 🔹 ACTIVIDADES (tabla tourDURACION) DURACION
 app.get('/api/actividades-duracion/listar-actividades', listarActividadesDuracion);
-app.post('/api/actividades-duracion/agregar-actividad-duracion', agregarActividadDuracion);
+app.post('/api/actividades-duracion', agregarActividadDuracion);        // ← para AGREGAR (lo que llama el front)
+app.put('/api/actividades-duracion/:id', agregarActividadDuracion); 
 
 
 app.use((req, res) => {
