@@ -4,7 +4,6 @@ import pool from '../../conexion.js';
 export async function actualizarActividadDuracion(req, res) {
   try {
     const { id } = req.params;
-
     const toNumberOrNull = (v) => {
       if (v === '' || v === undefined || v === null) return null;
       const n = Number(String(v).replace(/[^0-9.\-]/g, ''));
@@ -46,24 +45,37 @@ export async function actualizarActividadDuracion(req, res) {
       return res.status(400).json({ error: 'Faltan campos requeridos: codigo, nombre, duracion, moneda' });
     }
 
-    // ===== PRE-CHECK: código único en toda la tabla (excluyendo el propio id) =====
-    {
-      const { rows } = await pool.query(
-        `SELECT 1
-           FROM tourduracion
-          WHERE LOWER(TRIM(codigo)) = LOWER(TRIM($1))
-            AND id <> $2
-          LIMIT 1`,
-        [codigo, id]
-      );
-      if (rows.length) {
-        return res.status(409).json({
-          error: 'Error: El código que intentas registrar ya existe. Favor de validar.',
-          code: 'duplicate_codigo'
-        });
-      }
+    // ===== Validación previa combinada (excluyendo el propio registro) =====
+    const checkSql = `
+      SELECT
+        EXISTS(
+          SELECT 1 FROM tourduracion
+          WHERE LOWER(codigo) = LOWER($1) AND id <> $4
+        ) AS dup_codigo,
+        EXISTS(
+          SELECT 1 FROM tourduracion
+          WHERE actividad_id = COALESCE($2, actividad_id) AND LOWER(duracion) = LOWER($3) AND id <> $4
+        ) AS dup_duracion
+    `;
+    const checkParams = [codigo, actividad_id, duracion, id];
+    const chk = await pool.query(checkSql, checkParams);
+    const dupCodigo   = !!chk.rows?.[0]?.dup_codigo;
+    const dupDuracion = !!chk.rows?.[0]?.dup_duracion;
+
+    if (dupCodigo || dupDuracion) {
+      const messages = [];
+      const fields = {};
+      if (dupCodigo)   { messages.push('Error: El código que intentas registrar ya existe, favor de confirmar.'); fields.codigo = true; }
+      if (dupDuracion) { messages.push('Error: La duración que intentas registrar ya existe en ese grupo, favor de confirmar.'); fields.duracion = true; }
+
+      return res.status(409).json({
+        error: messages.join(' '),
+        code: 'duplicate',
+        fields
+      });
     }
 
+    // ===== Update =====
     const sql = `
       UPDATE tourduracion SET
         codigo = $1,
@@ -95,19 +107,20 @@ export async function actualizarActividadDuracion(req, res) {
   } catch (err) {
     console.error('❌ actualizarActividadDuracion:', err);
 
+    // Respaldo por UNIQUE de BD
     if (err && err.code === '23505') {
       let msg = 'Registro duplicado.';
       const c = String(err.constraint || '').toLowerCase();
       const detail = String(err.detail || '').toLowerCase();
 
       if (c.includes('uk_tourduracion_actividad_duracion') || detail.includes('(actividad_id, duracion)')) {
-        msg = 'Error: La duración que intentas registrar ya existe en ese grupo. Favor de validar.';
+        msg = 'Error: La duración que intentas registrar ya existe en ese grupo, favor de confirmar.';
       } else if (
         c.includes('tourduracion_codigo_key') ||
         c.includes('uk_tourduracion_codigo') ||
         detail.includes('(codigo)')
       ) {
-        msg = 'Error: El código que intentas registrar ya existe. Favor de validar.';
+        msg = 'Error: El código que intentas registrar ya existe, favor de confirmar.';
       }
 
       return res.status(409).json({
