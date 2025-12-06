@@ -56,7 +56,7 @@ import { estatusUsuarioPartners } from './partners/estatusUsuarioPartners.js';
 
 // 🔹 ACTIVIDADES (tabla tours) Estandar
 import { listarActividades } from './actividades/actividadestandar/listarActividades.js';
-import { listarPartnersAct } from './actividades/listarPartners.js';
+import { listarPartnersAct } from './actividades/listarPartners.js';						//Se utiliza para todas las tablas
 import { actualizarActividad } from './actividades/actividadestandar/actualizarActividad.js';
 import { agregarActividadEstandar } from './actividades/actividadestandar/agregarActividadestandar.js';
 import { cambiarEstatusActividadEstandar } from './actividades/actividadestandar/activarActEstandar.js';
@@ -69,7 +69,6 @@ import { cambiarEstatusActividadDuracion } from './actividades/actividadduracion
 
 // 🔹 ACTIVIDADES (tabla tours) PAX
 import { listarActividadesPax } from './actividades/actividadpax/listarActividadesPax.js';
-import { listarPartnersAct } from './actividades/listarPartners.js';
 import { actualizarActividadPax } from './actividades/actividadpax/actualizarActividadPax.js';
 import { agregarActividadPax } from './actividades/actividadpax/agregarActividadPax.js';
 import { cambiarEstatusActividadPax } from './actividades/actividadpax/activarActPax.js';
