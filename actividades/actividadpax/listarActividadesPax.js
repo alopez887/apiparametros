@@ -8,7 +8,7 @@ export const listarActividadesPax = async (req, res) => {
     const query = `
       SELECT *
       FROM tour_pax
-      ORDER BY id ASC
+      ORDER BY codigo ASC
     `;
 
     const { rows } = await pool.query(query);
