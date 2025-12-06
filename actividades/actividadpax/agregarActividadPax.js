@@ -1,4 +1,4 @@
-// actividades/actividadpax/agregarActividadPax.js
+/// /actividades/actividadpax/agregarActividadPax.js
 import pool from '../../conexion.js';
 
 /* =========================
@@ -46,6 +46,20 @@ async function codigoDetallesGlobal(client, codigo) {
   }));
 }
 
+/**
+ * POST /api/actividades-pax/agregar
+ * Body:
+ * {
+ *   codigo, nombre,
+ *   precio_adulto, precio_nino,
+ *   precionormal_adulto, precionormal_nino,
+ *   precioopc_adulto, precioopc_nino,
+ *   moneda, proveedor,
+ *   actividad_id,        // si groupMode === 'existente'
+ *   groupMode            // 'existente' | 'nuevo' | 'none'
+ * }
+ */
+
 export async function agregarActividadEstandar(req, res) {
   const body = req.body || {};
 
@@ -83,26 +97,10 @@ export async function agregarActividadEstandar(req, res) {
   // Proveedor opcional
   const proveedor = trimOrNull(body.proveedor);
 
-  // Query parametrizada (INSERT solo en tours)
-  const text = `
-    INSERT INTO public.tours
-      (codigo, nombre, precio_adulto, precio_nino, precionormal_adulto, precionormal_nino,
-       precioopc_adulto, precioopc_nino, moneda, proveedor)
-    VALUES
-      ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
-    RETURNING
-      id, codigo, nombre, precio_adulto, precio_nino,
-      precionormal_adulto, precionormal_nino, precioopc_adulto, precioopc_nino,
-      moneda, proveedor, created_at, updated_at
-  `;
-
-  const params = [
-    codigo, nombre,
-    precio_adulto, precio_nino,
-    precionormal_adulto, precionormal_nino,
-    precioopc_adulto, precioopc_nino,
-    moneda, proveedor
-  ];
+  // === Flujo de actividad_id (igual que en duración) ===
+  const rawActividadId = body.actividad_id;
+  const groupMode = String(body.groupMode || 'nuevo').toLowerCase(); // por default grupo nuevo
+  let actividadIdFinal = null;
 
   const client = await pool.connect();
   try {
@@ -110,6 +108,26 @@ export async function agregarActividadEstandar(req, res) {
 
     // 🔒 Evita carreras por el mismo código
     await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [codigo]);
+
+    // Resolver actividad_id
+    if (groupMode === 'existente') {
+      const parsed = Number(rawActividadId);
+      if (!Number.isFinite(parsed) || parsed <= 0) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({
+          error: 'actividad_id inválido para groupMode "existente"',
+        });
+      }
+      actividadIdFinal = String(parsed); // columna TEXT
+    } else {
+      // 'nuevo' o 'none' => MAX(actividad_id::int) + 1 dentro de TOURS
+      const { rows: rAct } = await client.query(`
+        SELECT COALESCE(MAX(actividad_id::int), 0) + 1 AS next
+        FROM tours
+        WHERE actividad_id ~ '^[0-9]+$'
+      `);
+      actividadIdFinal = String(Number(rAct?.[0]?.next) || 1);
+    }
 
     // ===== Validación GLOBAL de código en las 4 tablas =====
     const dupList = await codigoDetallesGlobal(client, codigo);
@@ -130,6 +148,33 @@ export async function agregarActividadEstandar(req, res) {
     }
 
     // ===== INSERT en tours =====
+    const text = `
+      INSERT INTO public.tours
+        (codigo, nombre,
+         precio_adulto, precio_nino,
+         precionormal_adulto, precionormal_nino,
+         precioopc_adulto, precioopc_nino,
+         moneda, proveedor, actividad_id)
+      VALUES
+        ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+      RETURNING
+        id, codigo, nombre,
+        precio_adulto, precio_nino,
+        precionormal_adulto, precionormal_nino,
+        precioopc_adulto, precioopc_nino,
+        moneda, proveedor, actividad_id,
+        created_at, updated_at
+    `;
+
+    const params = [
+      codigo, nombre,
+      precio_adulto, precio_nino,
+      precionormal_adulto, precionormal_nino,
+      precioopc_adulto, precioopc_nino,
+      moneda, proveedor,
+      actividadIdFinal,
+    ];
+
     const { rows } = await client.query(text, params);
     await client.query('COMMIT');
 
