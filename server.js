@@ -67,6 +67,13 @@ import { crearActividadDuracion }   from './actividades/actividadduracion/crearA
 import { actualizarActividadDuracion } from './actividades/actividadduracion/actualizarActividadDuracion.js';
 import { cambiarEstatusActividadDuracion } from './actividades/actividadduracion/estatusActividadDuracion.js';
 
+// 🔹 ACTIVIDADES (tabla tours) PAX
+import { listarActividadesPax } from './actividades/actividadpax/listarActividadesPax.js';
+import { listarPartnersAct } from './actividades/listarPartners.js';
+import { actualizarActividadPax } from './actividades/actividadpax/actualizarActividadPax.js';
+import { agregarActividadPax } from './actividades/actividadpax/agregarActividadPax.js';
+import { cambiarEstatusActividadPax } from './actividades/actividadpax/activarActPax.js';
+
 const app  = express();
 const PORT = process.env.PORT || 3000;
 
@@ -125,7 +132,7 @@ app.patch('/api/partners/usuarios-partners/:id/estatus', estatusUsuarioPartners)
 
 // 🔹 ACTIVIDADES (tabla tours) ESTANDAR
 app.get('/api/actividades/listar-actividades', listarActividades);
-app.get('/api/actividades/listar-partners', listarPartnersAct);
+app.get('/api/actividades/listar-partners', listarPartnersAct);    //Se usa para todos los catalogos....
 app.put('/api/actividades/:id', actualizarActividad);
 app.post('/api/actividades', agregarActividadEstandar);
 app.patch('/api/actividades/:id/estatus', cambiarEstatusActividadEstandar);
@@ -136,6 +143,11 @@ app.post('/api/actividades-duracion', crearActividadDuracion);
 app.put('/api/actividades-duracion/:id', actualizarActividadDuracion);
 app.patch('/api/actividades-duracion/:id/estatus', cambiarEstatusActividadDuracion);
 
+// 🔹 ACTIVIDADES (tabla tour_pax) PAX
+app.get('/api/actividades-pax/listar-actividades', listarActividadesPax);
+app.put('/api/actividades-pax/:id', actualizarActividadPax);
+app.post('/api/actividades-pax', agregarActividadPax);
+app.patch('/api/actividades-pax/:id/estatus', cambiarEstatusActividadPax);
 
 app.use((req, res) => {
   res.status(404).json({ error: 'Ruta no encontrada' });
