@@ -1,36 +1,27 @@
-// actividades/actividadestandar/activarActEstandar.js
+// actividades/actividadpax/EstatusActividadPax.js
 import pool from '../../conexion.js';
 
-export async function cambiarEstatusActividadEstandar(req, res) {
+export async function EstatusActividadPax(req, res) {
   try {
-    const { id } = req.params;
-
-    if (!id || Number.isNaN(Number(id))) {
-      return res.status(400).json({ error: 'Parámetro id inválido' });
+    // Acepta :codigo o :id en la ruta
+    const codigo = String(req.params?.codigo ?? req.params?.id ?? '').trim();
+    if (!codigo) {
+      return res.status(400).json({ error: 'Parámetro codigo inválido' });
     }
 
-    const rid = Number(id);
     const body = req.body || {};
     let nuevoActivo;
 
-    // Aceptamos activo booleano
+    // "activo" boolean o truthy/falsy comunes
     if (typeof body.activo === 'boolean') {
       nuevoActivo = body.activo;
-    } else if (
-      body.activo === 1 ||
-      body.activo === '1' ||
-      body.activo === 'true'
-    ) {
+    } else if (['1', 1, 'true', 't', 'yes', 'y'].includes(body.activo)) {
       nuevoActivo = true;
-    } else if (
-      body.activo === 0 ||
-      body.activo === '0' ||
-      body.activo === 'false'
-    ) {
+    } else if (['0', 0, 'false', 'f', 'no', 'n'].includes(body.activo)) {
       nuevoActivo = false;
     }
 
-    // O aceptamos estatus string
+    // "estatus" string alternativo
     if (typeof nuevoActivo !== 'boolean' && typeof body.estatus === 'string') {
       const v = body.estatus.trim().toLowerCase();
       if (v === 'activo' || v === 'active') nuevoActivo = true;
@@ -39,43 +30,33 @@ export async function cambiarEstatusActividadEstandar(req, res) {
 
     if (typeof nuevoActivo !== 'boolean') {
       return res.status(400).json({
-        error:
-          'Body inválido. Usa { "activo": true|false } o { "estatus": "activo"|"inactivo" }',
+        error: 'Body inválido. Usa { "activo": true|false } o { "estatus": "activo"|"inactivo" }',
       });
     }
 
-    // Solo lo usamos para el mensaje al cliente
-    const nuevoEstatusTexto = nuevoActivo ? 'activo' : 'inactivo';
-
-    // 🔸 Actualizamos la columna boolean "estatus" y el updated_at
-    const q = `
-      UPDATE tours
+    const { rows, rowCount } = await pool.query(
+      `
+      UPDATE tour_pax
          SET estatus    = $1,
              updated_at = NOW()
-       WHERE id = $2
-       RETURNING id, codigo, nombre, estatus, updated_at
-    `;
+       WHERE LOWER(TRIM(codigo)) = LOWER(TRIM($2))
+       RETURNING codigo, actividad, estatus, updated_at
+      `,
+      [nuevoActivo, codigo]
+    );
 
-    // 👈 Aquí ahora mandamos el booleano nuevoActivo, NO el texto "activo"/"inactivo"
-    const { rows, rowCount } = await pool.query(q, [nuevoActivo, rid]);
-
-    if (rowCount === 0) {
+    if (!rowCount) {
       return res.status(404).json({ error: 'Actividad no encontrada' });
     }
 
     return res.json({
       ok: true,
       data: rows[0],
-      message:
-        nuevoActivo
-          ? 'Actividad activada'
-          : 'Actividad desactivada',
-      estatusTexto: nuevoEstatusTexto,
+      message: nuevoActivo ? 'Actividad activada' : 'Actividad desactivada',
+      estatusTexto: nuevoActivo ? 'activo' : 'inactivo',
     });
   } catch (err) {
-    console.error('❌ cambiarEstatusActividadEstandar:', err);
-    return res
-      .status(500)
-      .json({ error: 'Error al cambiar estatus de la actividad' });
+    console.error('❌ EstatusActividadPax:', err);
+    return res.status(500).json({ error: 'Error al cambiar estatus de la actividad' });
   }
 }
