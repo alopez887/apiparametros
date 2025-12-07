@@ -12,10 +12,10 @@ const LABELS = {
 };
 
 /**
- * Valida un código en TODAS las tablas, excluyendo el propio registro en tour_pax (selfId).
- * Devuelve: [{ table:'dur'|'pax'|'anp'|'combo', nombre, label_es, label_en }]
+ * Valida un código en OTRAS tablas (no incluye tour_pax para evitar depender de "id").
+ * Devuelve: [{ table:'dur'|'anp'|'combo', nombre, label_es, label_en }]
  */
-async function codigoDetallesGlobalExceptSelfPax(client, codigo, selfId) {
+async function codigoDetallesGlobalExceptSelfPax(client, codigo /*, selfId */) {
   const sql = `
     WITH q AS (SELECT LOWER(TRIM($1)) AS c)
     SELECT cat, nombre FROM (
@@ -31,13 +31,6 @@ async function codigoDetallesGlobalExceptSelfPax(client, codigo, selfId) {
        WHERE LOWER(TRIM(td.codigo)) = q.c
 
       UNION ALL
-      -- tour_pax (pax) EXCLUYENDO el propio id
-      SELECT 'pax'  AS cat, COALESCE(tp.actividad, tp.codigo) AS nombre
-        FROM tour_pax tp, q
-       WHERE LOWER(TRIM(tp.codigo)) = q.c
-         AND tp.id <> $2::int
-
-      UNION ALL
       -- tours_combo (combo)
       SELECT 'combo' AS cat, COALESCE(tc.nombre_combo, tc.codigo) AS nombre
         FROM tours_combo tc, q
@@ -45,7 +38,7 @@ async function codigoDetallesGlobalExceptSelfPax(client, codigo, selfId) {
     ) s
     LIMIT 50;
   `;
-  const { rows } = await client.query(sql, [codigo, selfId]);
+  const { rows } = await client.query(sql, [codigo]);
   return rows.map(r => ({
     table: r.cat,
     nombre: r.nombre,
@@ -95,7 +88,7 @@ export async function actualizarActividadPax(req, res) {
   const _precio_normal = toNumOrNull(body.precionormal_adulto ?? body.precio_normal);
   const _precio_opc    = toNumOrNull(body.precioopc_adulto ?? body.precioopc);
 
-  // Normalizar actividad_id a entero o null
+  // Normalizar actividad_id a entero o null (grupo)
   const _actividad_id_raw = trimOrNull(body.actividad_id);
   const _actividad_id = _actividad_id_raw ? Number(_actividad_id_raw) : null;
 
@@ -111,8 +104,8 @@ export async function actualizarActividadPax(req, res) {
     // 🔒 Evita carreras por el mismo código
     await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [_codigo]);
 
-    // ===== Validación GLOBAL del código (excluye a sí mismo en tour_pax) =====
-    const dupList = await codigoDetallesGlobalExceptSelfPax(client, _codigo, idNum);
+    // ===== Validación GLOBAL del código (en catálogos distintos a tour_pax) =====
+    const dupList = await codigoDetallesGlobalExceptSelfPax(client, _codigo /*, idNum */);
     if (dupList.length > 0) {
       const nombresES = [...new Set(dupList.map(d => d.label_es))].join(', ');
       const msg = `Error: El código que intentas registrar ya existe en: ${nombresES}.`;
@@ -198,7 +191,7 @@ export async function actualizarActividadPax(req, res) {
     await client.query('ROLLBACK').catch(() => {});
     console.error('💥 actualizarActividadPax error:', err);
 
-    // Respaldo por UNIQUE
+    // Respaldo por UNIQUE en tour_pax(codigo)
     if (err && err.code === '23505') {
       return res.status(409).json({
         error: 'Error: El código que intentas registrar ya existe, favor de confirmar.',
