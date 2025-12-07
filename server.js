@@ -71,7 +71,7 @@ import { cambiarEstatusActividadDuracion } from './actividades/actividadduracion
 import { listarActividadesPax } from './actividades/actividadpax/listarActividadesPax.js';
 import { actualizarActividadPax } from './actividades/actividadpax/actualizarActividadPax.js';
 import { agregarActividadPax } from './actividades/actividadpax/agregarActividadPax.js';
-import EstatusActividadPax  from './actividades/actividadpax/EstatusActividadPax.js';
+import { EstatusActividadPax } from './actividades/actividadpax/EstatusActividadPax.js';
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
