@@ -1,4 +1,4 @@
-// actividades/actividadpax/actualizarActividadPax.js
+// actividades/actividadpax/EstatusActividadPax.js
 import pool from '../../conexion.js';
 
 /* =========================
@@ -47,7 +47,7 @@ const trimOrNull = (v) => {
   return s === '' ? null : s;
 };
 
-export async function actualizarActividadPax(req, res) {
+export async function EstatusActividadPax(req, res) {
   // ⚠️ En esta ruta el parámetro :id es el CODIGO, no un ID numérico.
   const codigoPath = String(req.params?.id ?? '').trim();
   if (!codigoPath) {
@@ -195,7 +195,7 @@ export async function actualizarActividadPax(req, res) {
 
   } catch (err) {
     await client.query('ROLLBACK').catch(() => {});
-    console.error('💥 actualizarActividadPax error:', err);
+    console.error('💥 EstatusActividadPax error:', err);
 
     // UNIQUE(codigo) (si lo tienes)
     if (err && err.code === '23505') {
@@ -212,4 +212,4 @@ export async function actualizarActividadPax(req, res) {
   }
 }
 
-export default actualizarActividadPax;
+export default EstatusActividadPax;
