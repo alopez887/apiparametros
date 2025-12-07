@@ -1,4 +1,4 @@
-// actividades/actividadpax/EstatusActividadPax.js
+// actividades/actividadpax/estatusActividadPax.js
 import pool from '../../conexion.js';
 
 export async function EstatusActividadPax(req, res) {
