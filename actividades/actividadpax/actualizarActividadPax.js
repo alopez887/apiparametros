@@ -70,12 +70,9 @@ export async function actualizarActividadPax(req, res) {
   const _precio_normal = toNumOrNull(b.precionormal_adulto ?? b.precio_normal);
   const _precio_opc    = toNumOrNull(b.precioopc_adulto ?? b.precioopc);
 
-  // actividad_id puede venir vacío -> null
+  // actividad_id es TEXTO o NULL (NO convertir a número)
   const actividadIdRaw = trimOrNull(b.actividad_id);
-  const _actividad_id  = actividadIdRaw === null ? null : Number(actividadIdRaw);
-  if (actividadIdRaw !== null && !Number.isFinite(_actividad_id)) {
-    return res.status(400).json({ error: 'actividad_id inválido' });
-  }
+  const _actividad_id  = actividadIdRaw === null ? null : String(actividadIdRaw);
 
   // Requeridos
   if (!_codigo || !_actividad || !_duracion || !_moneda) {
@@ -122,14 +119,14 @@ export async function actualizarActividadPax(req, res) {
       });
     }
 
-    // 3) Validación: duración duplicada dentro del mismo grupo (actividad_id), excluyendo esta misma fila (por codigoPath)
+    // 3) Validación: duración duplicada dentro del mismo grupo (actividad_id TEXTO), excluyendo esta fila (por codigoPath)
     if (_actividad_id !== null) {
       const { rows: du } = await client.query(
         `
         SELECT 1
           FROM tour_pax
          WHERE LOWER(TRIM(codigo)) <> LOWER(TRIM($1))
-           AND actividad_id = $2::int
+           AND COALESCE(TRIM(actividad_id),'') = COALESCE(TRIM($2)::text,'')
            AND LOWER(TRIM(duracion)) = LOWER(TRIM($3))
          LIMIT 1
         `,
@@ -145,7 +142,7 @@ export async function actualizarActividadPax(req, res) {
       }
     }
 
-    // 4) UPDATE por CODIGO en la ruta (codigoPath)
+    // 4) UPDATE por CODIGO en la ruta (codigoPath) — actividad_id como TEXTO o NULL
     const sql = `
       UPDATE public.tour_pax
          SET codigo        = $1,
@@ -159,7 +156,7 @@ export async function actualizarActividadPax(req, res) {
              precioopc     = $9,
              moneda        = $10,
              proveedor     = $11,
-             actividad_id  = $12::int,   -- 👈 TIPADO EXPLÍCITO (acepta NULL)
+             actividad_id  = NULLIF(TRIM($12)::text, ''),
              updated_at    = NOW()
        WHERE LOWER(TRIM(codigo)) = LOWER(TRIM($13))
        RETURNING
@@ -183,7 +180,7 @@ export async function actualizarActividadPax(req, res) {
       _precio_opc,       // $9
       _moneda,           // $10
       _proveedor,        // $11
-      _actividad_id,     // $12  -> será null o number (el ::int del SQL resuelve el tipo)
+      _actividad_id,     // $12 -> TEXTO o NULL
       codigoPath,        // $13
     ];
 
