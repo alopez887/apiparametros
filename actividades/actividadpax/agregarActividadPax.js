@@ -226,7 +226,6 @@ export async function agregarActividadPax(req, res) {
         $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,COALESCE($13, TRUE),NOW(),NOW()
       )
       RETURNING
-        id,
         codigo,
         actividad,
         duracion_es,
