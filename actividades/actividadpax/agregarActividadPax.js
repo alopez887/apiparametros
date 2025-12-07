@@ -122,7 +122,7 @@ export async function agregarActividadPax(req, res) {
   proveedor  = toTextOrNull(proveedor);
   estatus    = toBoolOrNull(estatus);
 
-  // Requeridos mínimos (igual criterio que en duración: codigo, nombre, duracion, moneda)
+  // Requeridos mínimos (mismo criterio que en duración)
   if (!codigo || !actividadFinal || !duracion || !moneda) {
     return res.status(400).json({
       error: 'Faltan campos requeridos: codigo, actividad, duracion, moneda',
@@ -164,7 +164,7 @@ export async function agregarActividadPax(req, res) {
     const dupList = await codigoDetallesGlobal(client, codigo);
     const existeCodigoGlobal = dupList.length > 0;
 
-    // (B) (actividad_id, duracion) único en tour_pax  -> "tiempo ya existe"
+    // (B) (actividad_id, duracion) único en tour_pax
     let dupDuracion = false;
     if (actividadIdFinal && duracion) {
       const { rows: chk2 } = await client.query(
@@ -199,7 +199,7 @@ export async function agregarActividadPax(req, res) {
         error: msgs.join(' '),
         code: 'duplicate',
         fields,
-        catalogs: dupList, // opcional para el front
+        catalogs: dupList, // ← CLAVE para que el front muestre las etiquetas correctas
       });
     }
 
@@ -270,7 +270,7 @@ export async function agregarActividadPax(req, res) {
     await client.query('ROLLBACK').catch(() => {});
     console.error('💥 agregarActividadPax error:', err);
 
-    // Respaldo por UNIQUE (igual estilo que duración)
+    // Respaldo por UNIQUE (igual estilo que duración) — AHORA con catalogs
     if (err && err.code === '23505') {
       let msg = 'Registro duplicado.';
       const c = String(err.constraint || '').toLowerCase();
@@ -290,9 +290,16 @@ export async function agregarActividadPax(req, res) {
         msg = 'Error: El código que intentas registrar ya existe, favor de confirmar.';
       }
 
+      // 🔧 Recalcular catálogos para que el front muestre los labels correctos
+      let dupList = [];
+      try {
+        dupList = await codigoDetallesGlobal(client, codigo);
+      } catch {}
+
       return res.status(409).json({
         error: msg,
         code: 'duplicate',
+        catalogs: dupList,            // ← CLAVE
         constraint: err.constraint || null,
         detail: err.detail || null,
       });

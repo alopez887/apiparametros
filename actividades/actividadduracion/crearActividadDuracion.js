@@ -1,4 +1,4 @@
-// /actividades/actividadduracion/crearActividadDuracion.js
+//actividades/actividadduracion/crearActividadDuracion.js
 import pool from '../../conexion.js';
 
 /**
