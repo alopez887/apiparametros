@@ -146,7 +146,7 @@ app.patch('/api/actividades-duracion/:id/estatus', cambiarEstatusActividadDuraci
 app.get('/api/actividades-pax/listar-actividades', listarActividadesPax);
 app.put('/api/actividades-pax/:id', actualizarActividadPax);
 app.post('/api/actividades-pax', agregarActividadPax);
-app.patch('/api/actividades-pax/:id/estatus', estatusActividadPax);
+app.patch('/api/actividades-pax/:id/estatus', EstatusActividadPax);
 
 app.use((req, res) => {
   res.status(404).json({ error: 'Ruta no encontrada' });
