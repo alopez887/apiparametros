@@ -9,7 +9,7 @@ import pool from '../../conexion.js';
  * - Actualiza updated_at = NOW().
  * Respuesta: { ok:true, data:{ codigo, estatus, updated_at } }
  */
-export const EstatusActividadPax = async (req, res) => {
+async function EstatusActividadPax(req, res) {
   const codigoPath = String(req.params?.id ?? '').trim();
   if (!codigoPath) {
     return res.status(400).json({ error: 'Código inválido en la ruta' });
@@ -65,4 +65,8 @@ export const EstatusActividadPax = async (req, res) => {
   } finally {
     client.release();
   }
-};
+}
+
+// Exporta AMBOS estilos (named y default). Así funciona con cualquier import.
+export { EstatusActividadPax };
+export default EstatusActividadPax;
