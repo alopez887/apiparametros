@@ -1,48 +1,30 @@
-// actividades/actividadestandar/actualizarActividad.js
+// actividades/actividadpax/actualizarActividadPax.js
 import pool from '../../conexion.js';
 
 /* =========================
- * Catálogos (mismos labels que en AGREGAR)
+ * Catálogos (para mensajes)
  * ========================= */
 const LABELS = {
-  anp:  { es: 'Adultos / Niños / Persona',          en: 'Adults / Children / Per person' },
-  dur:  { es: 'Actividades por duración (tiempo)',  en: 'Activities by duration (time)' },
-  pax:  { es: 'Actividades por PAX (grupo)',        en: 'Activities by PAX (group)' },
-  combo:{ es: 'Combos de actividades',              en: 'Activity combos' },
+  anp:   { es: 'Adultos / Niños / Persona',          en: 'Adults / Children / Per person' },
+  dur:   { es: 'Actividades por duración (tiempo)',  en: 'Activities by duration (time)' },
+  pax:   { es: 'Actividades por PAX (grupo)',        en: 'Activities by PAX (group)' },
+  combo: { es: 'Combos de actividades',              en: 'Activity combos' },
 };
 
-/**
- * Valida un código en TODAS las tablas, excluyendo el propio registro de `tours` (anp)
- * Devuelve: [{ table:'dur'|'pax'|'anp'|'combo', nombre, label_es, label_en }]
- */
-async function codigoDetallesGlobalExceptSelf(client, codigo, selfId) {
+/** Valida un código en otras tablas (NO revisa tour_pax). */
+async function codigoDetallesGlobalOtrasTablas(client, codigo) {
   const sql = `
     WITH q AS (SELECT LOWER(TRIM($1)) AS c)
     SELECT cat, nombre FROM (
-      -- tours (anp) EXCLUYENDO el propio id
-      SELECT 'anp' AS cat, COALESCE(t.nombre, t.codigo) AS nombre
-        FROM tours t, q
-       WHERE LOWER(TRIM(t.codigo)) = q.c
-         AND t.id <> $2::int
+      SELECT 'anp'   AS cat, COALESCE(t.nombre, t.codigo)          AS nombre FROM tours         t,  q WHERE LOWER(TRIM(t.codigo))  = q.c
       UNION ALL
-      -- tourduracion (dur)
-      SELECT 'dur' AS cat, COALESCE(td.nombre, td.codigo) AS nombre
-        FROM tourduracion td, q
-       WHERE LOWER(TRIM(td.codigo)) = q.c
+      SELECT 'dur'   AS cat, COALESCE(td.nombre, td.codigo)        AS nombre FROM tourduracion  td, q WHERE LOWER(TRIM(td.codigo)) = q.c
       UNION ALL
-      -- tour_pax (pax)
-      SELECT 'pax' AS cat, COALESCE(tp.actividad, tp.codigo) AS nombre
-        FROM tour_pax tp, q
-       WHERE LOWER(TRIM(tp.codigo)) = q.c
-      UNION ALL
-      -- tours_combo (combo)
-      SELECT 'combo' AS cat, COALESCE(tc.nombre_combo, tc.codigo) AS nombre
-        FROM tours_combo tc, q
-       WHERE LOWER(TRIM(tc.codigo)) = q.c
+      SELECT 'combo' AS cat, COALESCE(tc.nombre_combo, tc.codigo)  AS nombre FROM tours_combo   tc, q WHERE LOWER(TRIM(tc.codigo)) = q.c
     ) s
     LIMIT 50;
   `;
-  const { rows } = await client.query(sql, [codigo, selfId]);
+  const { rows } = await client.query(sql, [codigo]);
   return rows.map(r => ({
     table: r.cat,
     nombre: r.nombre,
@@ -52,7 +34,7 @@ async function codigoDetallesGlobalExceptSelf(client, codigo, selfId) {
 }
 
 /* =========================
- * Normalizadores (compat con AGREGAR)
+ * Normalizadores
  * ========================= */
 const toNumOrNull = (v) => {
   if (v === null || v === undefined || v === '') return null;
@@ -65,89 +47,147 @@ const trimOrNull = (v) => {
   return s === '' ? null : s;
 };
 
-export async function actualizarActividad(req, res) {
-  const { id } = req.params || {};
-  const idNum = Number(id);
-
-  if (!Number.isInteger(idNum) || idNum <= 0) {
-    return res.status(400).json({ error: 'ID inválido' });
+export async function actualizarActividadPax(req, res) {
+  // ⚠️ En esta ruta el parámetro :id es el CODIGO, no un ID numérico.
+  const codigoPath = String(req.params?.id ?? '').trim();
+  if (!codigoPath) {
+    return res.status(400).json({ error: 'Código inválido en la ruta' });
   }
 
-  // Body esperado desde tu iframe
-  const body = req.body || {};
-  const _codigo     = trimOrNull(body.codigo) ?? '';
-  const _nombre     = trimOrNull(body.nombre) ?? '';
-  const _moneda     = (trimOrNull(body.moneda) || 'USD').toUpperCase();
-  const _proveedor  = trimOrNull(body.proveedor);
+  // Body desde el iframe
+  const b = req.body || {};
+  const _codigo        = trimOrNull(b.codigo) ?? '';                 // nuevo código (puede cambiar, admite guiones)
+  const _actividad     = trimOrNull(b.actividad ?? b.nombre) ?? '';
+  const _moneda        = (trimOrNull(b.moneda) || 'USD').toUpperCase();
+  const _proveedor     = trimOrNull(b.proveedor);
 
-  if (!_codigo || !_nombre || !_moneda) {
-    return res.status(400).json({ error: 'Faltan campos requeridos: codigo, nombre, moneda' });
+  const _duracion      = trimOrNull(b.duracion);
+  const _duracion_es   = trimOrNull(b.duracion_es);
+  const _capacidad     = trimOrNull(b.capacidad);
+  const _capacidad_es  = trimOrNull(b.capacidad_es);
+
+  const _precio        = toNumOrNull(b.precio_adulto ?? b.precio);
+  const _precio_normal = toNumOrNull(b.precionormal_adulto ?? b.precio_normal);
+  const _precio_opc    = toNumOrNull(b.precioopc_adulto ?? b.precioopc);
+
+  // actividad_id es TEXTO o NULL (NO convertir a número)
+  const actividadIdRaw = trimOrNull(b.actividad_id);
+  const _actividad_id  = actividadIdRaw === null ? null : String(actividadIdRaw);
+
+  // Requeridos
+  if (!_codigo || !_actividad || !_duracion || !_moneda) {
+    return res.status(400).json({ error: 'Faltan campos requeridos: codigo, actividad, duracion, moneda' });
   }
-
-  // Precios -> null si no hay
-  const _precio_adulto         = toNumOrNull(body.precio_adulto);
-  const _precio_nino           = toNumOrNull(body.precio_nino);
-  const _precionormal_adulto   = toNumOrNull(body.precionormal_adulto);
-  const _precionormal_nino     = toNumOrNull(body.precionormal_nino);
-  const _precioopc_adulto      = toNumOrNull(body.precioopc_adulto);
-  const _precioopc_nino        = toNumOrNull(body.precioopc_nino);
 
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
 
-    // 🔒 Evita carreras por el mismo código (mismo patrón que AGREGAR)
+    // 🔒 Lock por código destino (para evitar condiciones de carrera al actualizar por código)
     await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [_codigo]);
 
-    // ===== Validación GLOBAL del código (excluye a sí mismo en tours) =====
-    const dupList = await codigoDetallesGlobalExceptSelf(client, _codigo, idNum);
-    if (dupList.length > 0) {
-      const nombresES = [...new Set(dupList.map(d => d.label_es))].join(', ');
-      // MISMA FRASE que en AGREGAR/DURACIÓN
-      const msg = `Error: El código que intentas registrar ya existe en: ${nombresES}.`;
-
+    // 1) Validación global del código en otras tablas (no tour_pax)
+    const dupOtras = await codigoDetallesGlobalOtrasTablas(client, _codigo);
+    if (dupOtras.length > 0) {
+      const nombresES = [...new Set(dupOtras.map(d => d.label_es))].join(', ');
       await client.query('ROLLBACK');
       return res.status(409).json({
-        error: msg,
+        error: `Error: El código que intentas registrar ya existe en: ${nombresES}.`,
         code: 'duplicate',
         fields: { codigo: true },
-        catalogs: dupList, // Para que el front pueda mostrar etiquetas ES/EN si quiere
+        catalogs: dupOtras,
       });
     }
 
-    // ===== UPDATE en tours =====
+    // 2) Si cambian el código, que no exista otra fila en tour_pax con ese nuevo código (case/trim insensitive)
+    const { rows: existeNuevo } = await client.query(
+      `
+      SELECT 1
+        FROM tour_pax
+       WHERE LOWER(TRIM(codigo)) = LOWER(TRIM($1))
+         AND LOWER(TRIM(codigo)) <> LOWER(TRIM($2))
+       LIMIT 1
+      `,
+      [_codigo, codigoPath]
+    );
+    if (existeNuevo.length) {
+      await client.query('ROLLBACK');
+      return res.status(409).json({
+        error: 'Error: El código que intentas registrar ya existe, favor de confirmar.',
+        code: 'duplicate',
+        fields: { codigo: true },
+      });
+    }
+
+    // 3) Validación: duración duplicada dentro del mismo grupo (actividad_id TEXTO), excluyendo esta fila (por codigoPath)
+    if (_actividad_id !== null) {
+      const { rows: du } = await client.query(
+        `
+        SELECT 1
+          FROM tour_pax
+         WHERE LOWER(TRIM(codigo)) <> LOWER(TRIM($1))
+           AND COALESCE(TRIM(actividad_id),'') = COALESCE(TRIM($2)::text,'')
+           AND LOWER(TRIM(duracion)) = LOWER(TRIM($3))
+         LIMIT 1
+        `,
+        [codigoPath, _actividad_id, _duracion]
+      );
+      if (du.length) {
+        await client.query('ROLLBACK');
+        return res.status(409).json({
+          error: 'Error: La duración que intentas registrar ya existe en ese grupo, favor de confirmar.',
+          code: 'duplicate',
+          fields: { duracion: true },
+        });
+      }
+    }
+
+    // 4) UPDATE por CODIGO en la ruta (codigoPath) — actividad_id como TEXTO o NULL
     const sql = `
-      UPDATE public.tours
-         SET codigo               = $1,
-             nombre               = $2,
-             moneda               = $3,
-             precio_adulto        = $4::numeric::money,
-             precio_nino          = $5::numeric::money,
-             precionormal_adulto  = $6::numeric::money,
-             precionormal_nino    = $7::numeric::money,
-             precioopc_adulto     = $8::numeric::money,
-             precioopc_nino       = $9::numeric::money,
-             proveedor            = $10,
-             updated_at           = NOW()
-       WHERE id = $11
-       RETURNING id, codigo, nombre, moneda, proveedor,
-                 precio_adulto, precio_nino,
-                 precionormal_adulto, precionormal_nino,
-                 precioopc_adulto, precioopc_nino,
-                 created_at, updated_at
+      UPDATE public.tour_pax
+         SET codigo        = $1,
+             actividad     = $2,
+             duracion      = $3,
+             duracion_es   = $4,
+             capacidad     = $5,
+             capacidad_es  = $6,
+             precio        = $7,
+             precio_normal = $8,
+             precioopc     = $9,
+             moneda        = $10,
+             proveedor     = $11,
+             actividad_id  = NULLIF(TRIM($12)::text, ''),
+             updated_at    = NOW()
+       WHERE LOWER(TRIM(codigo)) = LOWER(TRIM($13))
+       RETURNING
+             codigo,
+             actividad,
+             duracion, duracion_es,
+             capacidad, capacidad_es,
+             precio, precio_normal, precioopc,
+             moneda, proveedor, actividad_id,
+             created_at, updated_at, estatus
     `;
     const params = [
-      _codigo, _nombre, _moneda,
-      _precio_adulto, _precio_nino,
-      _precionormal_adulto, _precionormal_nino,
-      _precioopc_adulto, _precioopc_nino,
-      _proveedor, idNum
+      _codigo,           // $1
+      _actividad,        // $2
+      _duracion,         // $3
+      _duracion_es,      // $4
+      _capacidad,        // $5
+      _capacidad_es,     // $6
+      _precio,           // $7
+      _precio_normal,    // $8
+      _precio_opc,       // $9
+      _moneda,           // $10
+      _proveedor,        // $11
+      _actividad_id,     // $12 -> TEXTO o NULL
+      codigoPath,        // $13
     ];
 
     const { rows } = await client.query(sql, params);
     if (!rows.length) {
       await client.query('ROLLBACK');
-      return res.status(404).json({ error: 'Actividad no encontrada' });
+      return res.status(404).json({ error: 'Actividad no encontrada (código de ruta)' });
     }
 
     await client.query('COMMIT');
@@ -155,9 +195,9 @@ export async function actualizarActividad(req, res) {
 
   } catch (err) {
     await client.query('ROLLBACK').catch(() => {});
-    console.error('💥 actualizarActividad error:', err);
+    console.error('💥 actualizarActividadPax error:', err);
 
-    // Respaldo por UNIQUE (por si algo se cuela)
+    // UNIQUE(codigo) (si lo tienes)
     if (err && err.code === '23505') {
       return res.status(409).json({
         error: 'Error: El código que intentas registrar ya existe, favor de confirmar.',
@@ -172,4 +212,4 @@ export async function actualizarActividad(req, res) {
   }
 }
 
-export default actualizarActividad;
+export default actualizarActividadPax;
