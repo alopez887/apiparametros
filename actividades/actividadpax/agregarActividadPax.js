@@ -60,7 +60,7 @@ async function codigoDetallesGlobal(client, codigo) {
  * }
  */
 
-export async function agregarActividadEstandar(req, res) {
+export async function agregarActividadPax(req, res) {
   const body = req.body || {};
 
   // Normalizadores
@@ -183,7 +183,7 @@ export async function agregarActividadEstandar(req, res) {
 
   } catch (err) {
     await client.query('ROLLBACK').catch(() => {});
-    console.error('💥 agregarActividadEstandar error:', err);
+    console.error('💥 agregarActividadPax error:', err);
 
     // Respaldo por UNIQUE (por si algo se cuela)
     if (err && err.code === '23505') {
@@ -201,4 +201,4 @@ export async function agregarActividadEstandar(req, res) {
   }
 }
 
-export default agregarActividadEstandar;
+export default agregarActividadPax;

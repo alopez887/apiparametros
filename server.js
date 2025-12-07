@@ -70,7 +70,7 @@ import { cambiarEstatusActividadDuracion } from './actividades/actividadduracion
 // 🔹 ACTIVIDADES (tabla tours) PAX
 import { listarActividadesPax } from './actividades/actividadpax/listarActividadesPax.js';
 //import { actualizarActividadPax } from './actividades/actividadpax/actualizarActividadPax.js';
-//import { agregarActividadPax } from './actividades/actividadpax/agregarActividadPax.js';
+import { agregarActividadPax } from './actividades/actividadpax/agregarActividadPax.js';
 //import { cambiarEstatusActividadPax } from './actividades/actividadpax/activarActPax.js';
 
 const app  = express();
@@ -145,7 +145,7 @@ app.patch('/api/actividades-duracion/:id/estatus', cambiarEstatusActividadDuraci
 // 🔹 ACTIVIDADES (tabla tour_pax) PAX
 app.get('/api/actividades-pax/listar-actividades', listarActividadesPax);
 //app.put('/api/actividades-pax/:id', actualizarActividadPax);
-//app.post('/api/actividades-pax', agregarActividadPax);
+app.post('/api/actividades-pax', agregarActividadPax);
 //app.patch('/api/actividades-pax/:id/estatus', cambiarEstatusActividadPax);
 
 app.use((req, res) => {
