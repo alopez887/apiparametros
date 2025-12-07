@@ -78,20 +78,28 @@ export async function actualizarActividadPax(req, res) {
 
   // Body esperado desde tu iframe PAX
   const body = req.body || {};
+
   const _codigo        = trimOrNull(body.codigo) ?? '';
-  const _actividad     = trimOrNull(body.nombre) ?? '';            // campo real en tour_pax = "actividad"
+  // Aceptar también "nombre" por compatibilidad
+  const _actividad     = trimOrNull(body.actividad ?? body.nombre) ?? '';
   const _moneda        = (trimOrNull(body.moneda) || 'USD').toUpperCase();
   const _proveedor     = trimOrNull(body.proveedor);
-  const _duracion      = trimOrNull(body.duracion);                // requerido
+
+  const _duracion      = trimOrNull(body.duracion);      // requerido
   const _duracion_es   = trimOrNull(body.duracion_es);
   const _capacidad     = trimOrNull(body.capacidad);
   const _capacidad_es  = trimOrNull(body.capacidad_es);
-  const _precio        = toNumOrNull(body.precio_adulto ?? body.precio);          // mapeo desde front
+
+  // Mapeos de precios desde el front (acepta ambas variantes)
+  const _precio        = toNumOrNull(body.precio_adulto ?? body.precio);
   const _precio_normal = toNumOrNull(body.precionormal_adulto ?? body.precio_normal);
   const _precio_opc    = toNumOrNull(body.precioopc_adulto ?? body.precioopc);
-  const _actividad_id  = trimOrNull(body.actividad_id); // puede ser null (nuevo grupo implícito)
 
-  // Requeridos para PAX: código, actividad, duración, moneda
+  // Normalizar actividad_id a entero o null
+  const _actividad_id_raw = trimOrNull(body.actividad_id);
+  const _actividad_id = _actividad_id_raw ? Number(_actividad_id_raw) : null;
+
+  // Requeridos para PAX
   if (!_codigo || !_actividad || !_duracion || !_moneda) {
     return res.status(400).json({ error: 'Faltan campos requeridos: codigo, actividad, duracion, moneda' });
   }
@@ -118,16 +126,16 @@ export async function actualizarActividadPax(req, res) {
     }
 
     // ===== Validación: duración duplicada dentro del mismo grupo (actividad_id) =====
-    if (_actividad_id) {
+    if (_actividad_id !== null) {
       const sqlDupDur = `
         SELECT 1
           FROM tour_pax
          WHERE id <> $1
-           AND COALESCE(actividad_id::text, '') = $2
+           AND actividad_id = $2::int
            AND LOWER(TRIM(duracion)) = LOWER(TRIM($3))
          LIMIT 1;
       `;
-      const { rows: du } = await client.query(sqlDupDur, [idNum, String(_actividad_id), _duracion]);
+      const { rows: du } = await client.query(sqlDupDur, [idNum, _actividad_id, _duracion]);
       if (du.length) {
         await client.query('ROLLBACK');
         return res.status(409).json({
