@@ -1,72 +1,29 @@
-// actividades/actividadpax/EstatusActividadPax.js
+// /actividades/actividadpax/actualizarActividadPax.js
 import pool from '../../conexion.js';
 
-/**
- * PATCH /api/actividades-pax/:id/estatus
- * :id es el CODIGO (no ID numérico).
- * - Si body trae { estatus: true|false } fija ese valor.
- * - Si no trae "estatus", hace toggle.
- * - Actualiza updated_at = NOW().
- * Respuesta: { ok:true, data:{ codigo, estatus, updated_at } }
- */
-async function EstatusActividadPax(req, res) {
-  const codigoPath = String(req.params?.id ?? '').trim();
-  if (!codigoPath) {
-    return res.status(400).json({ error: 'Código inválido en la ruta' });
-  }
-
-  const body = req.body || {};
-  const estatusBody =
-    typeof body.estatus === 'boolean' ? body.estatus : null; // null => toggle
-
-  const client = await pool.connect();
+export async function EstatusActividadPax(req, res) {
   try {
-    await client.query('BEGIN');
+    const { id } = req.params;
+    let { activo } = req.body || {};
 
-    // Lock por código para evitar condiciones de carrera
-    await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [codigoPath]);
+    // normaliza a boolean
+    const s = String(activo).toLowerCase();
+    const flag = ['1','true','t','activo','active','yes','y'].includes(s);
 
-    // Obtener fila actual por CODIGO (case/trim-insensitive)
-    const sel = await client.query(
-      `
-        SELECT codigo, estatus
-          FROM public.tour_pax
-         WHERE LOWER(TRIM(codigo)) = LOWER(TRIM($1))
-         LIMIT 1
-      `,
-      [codigoPath]
-    );
+    const sql = `
+      UPDATE tour_pax
+      SET estatus = $1, update_at = NOW()
+      WHERE id = $2
+      RETURNING id, estatus, update_at;
+    `;
+    const r = await pool.query(sql, [flag, id]);
+    if (!r.rowCount) return res.status(404).json({ error: 'Actividad no encontrada' });
 
-    if (sel.rowCount === 0) {
-      await client.query('ROLLBACK');
-      return res.status(404).json({ error: 'Actividad no encontrada (código)' });
-    }
-
-    const current = sel.rows[0];
-    const nuevoEstatus = estatusBody === null ? !Boolean(current.estatus) : estatusBody;
-
-    const upd = await client.query(
-      `
-        UPDATE public.tour_pax
-           SET estatus    = $1,
-               updated_at = NOW()
-         WHERE LOWER(TRIM(codigo)) = LOWER(TRIM($2))
-         RETURNING codigo, estatus, updated_at
-      `,
-      [nuevoEstatus, codigoPath]
-    );
-
-    await client.query('COMMIT');
-    return res.json({ ok: true, data: upd.rows[0] });
+    return res.json({ ok: true, data: r.rows[0] });
   } catch (err) {
-    await client.query('ROLLBACK').catch(() => {});
-    console.error('💥 EstatusActividadPax error:', err);
-    return res.status(500).json({ error: 'Error al cambiar el estatus' });
-  } finally {
-    client.release();
+    console.error('❌ EstatusActividadPax:', err);
+    return res.status(500).json({ error: 'No se pudo cambiar el estatus' });
   }
 }
 
-// Exporta AMBOS estilos (named y default). Así funciona con cualquier import.
-export { EstatusActividadPax };
 export default EstatusActividadPax;
