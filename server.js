@@ -144,7 +144,7 @@ app.patch('/api/actividades-duracion/:id/estatus', cambiarEstatusActividadDuraci
 
 // 🔹 ACTIVIDADES (tabla tour_pax) PAX
 app.get('/api/actividades-pax/listar-actividades', listarActividadesPax);
-//app.put('/api/actividades-pax/:id', actualizarActividadPax);
+app.put('/api/actividades-pax/:id', actualizarActividadPax);
 app.post('/api/actividades-pax', agregarActividadPax);
 //app.patch('/api/actividades-pax/:id/estatus', cambiarEstatusActividadPax);
 
