@@ -69,7 +69,7 @@ import { cambiarEstatusActividadDuracion } from './actividades/actividadduracion
 
 // 🔹 ACTIVIDADES (tabla tours) PAX
 import { listarActividadesPax } from './actividades/actividadpax/listarActividadesPax.js';
-//import { actualizarActividadPax } from './actividades/actividadpax/actualizarActividadPax.js';
+import { actualizarActividadPax } from './actividades/actividadpax/actualizarActividadPax.js';
 import { agregarActividadPax } from './actividades/actividadpax/agregarActividadPax.js';
 //import { cambiarEstatusActividadPax } from './actividades/actividadpax/activarActPax.js';
 
