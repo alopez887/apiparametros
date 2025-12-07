@@ -71,7 +71,7 @@ import { cambiarEstatusActividadDuracion } from './actividades/actividadduracion
 import { listarActividadesPax } from './actividades/actividadpax/listarActividadesPax.js';
 import { actualizarActividadPax } from './actividades/actividadpax/actualizarActividadPax.js';
 import { agregarActividadPax } from './actividades/actividadpax/agregarActividadPax.js';
-import { EstatusActividadPax } from './actividades/actividadpax/actualizarActividadPax.js';
+//import { EstatusActividadPax } from './actividades/actividadpax/actualizarActividadPax.js';
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
@@ -146,7 +146,7 @@ app.patch('/api/actividades-duracion/:id/estatus', cambiarEstatusActividadDuraci
 app.get('/api/actividades-pax/listar-actividades', listarActividadesPax);
 app.put('/api/actividades-pax/:id', actualizarActividadPax);
 app.post('/api/actividades-pax', agregarActividadPax);
-app.patch('/api/actividades-pax/:id/estatus', EstatusActividadPax);
+//app.patch('/api/actividades-pax/:id/estatus', EstatusActividadPax);
 
 app.use((req, res) => {
   res.status(404).json({ error: 'Ruta no encontrada' });
