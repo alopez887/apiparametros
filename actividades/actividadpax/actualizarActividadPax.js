@@ -2,33 +2,22 @@
 import pool from '../../conexion.js';
 
 /**
- * Cambia el estatus (boolean) de una actividad PAX en la tabla tour_pax.
- *
- * Ruta esperada (server.js):
- *   app.patch('/api/actividades-pax/:id/estatus', EstatusActividadPax);
- *
- * Reglas:
- * - :id en la ruta es el CODIGO (no ID numérico).
- * - Si en el body llega { estatus: true|false }, se fija ese valor.
- * - Si no llega "estatus" en el body, se hace toggle (NOT estatus actual).
+ * PATCH /api/actividades-pax/:id/estatus
+ * :id es el CODIGO (no ID numérico).
+ * - Si body trae { estatus: true|false } fija ese valor.
+ * - Si no trae "estatus", hace toggle del valor actual.
  * - Actualiza updated_at = NOW().
- * - Comparación de código case/trim-insensitive.
- *
- * Respuesta:
- *   { ok: true, data: { codigo, estatus, updated_at } }
+ * Respuesta: { ok:true, data:{ codigo, estatus, updated_at } }
  */
-export async function EstatusActividadPax(req, res) {
+async function EstatusActividadPax(req, res) {
   const codigoPath = String(req.params?.id ?? '').trim();
   if (!codigoPath) {
     return res.status(400).json({ error: 'Código inválido en la ruta' });
   }
 
-  // Leer estatus del body si viene; si no, será toggle
   const body = req.body || {};
-  let estatusBody =
-    typeof body.estatus === 'boolean'
-      ? body.estatus
-      : null; // null => togglear
+  const estatusBody =
+    typeof body.estatus === 'boolean' ? body.estatus : null; // null => toggle
 
   const client = await pool.connect();
   try {
@@ -37,10 +26,10 @@ export async function EstatusActividadPax(req, res) {
     // Lock por código para evitar condiciones de carrera
     await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [codigoPath]);
 
-    // 1) Obtener fila actual por CODIGO (case/trim-insensitive)
+    // Obtener fila actual por CODIGO (case/trim-insensitive)
     const sel = await client.query(
       `
-        SELECT codigo, estatus, updated_at
+        SELECT codigo, estatus
           FROM public.tour_pax
          WHERE LOWER(TRIM(codigo)) = LOWER(TRIM($1))
          LIMIT 1
@@ -53,11 +42,9 @@ export async function EstatusActividadPax(req, res) {
       return res.status(404).json({ error: 'Actividad no encontrada (código)' });
     }
 
-    // 2) Determinar nuevo estatus
     const current = sel.rows[0];
     const nuevoEstatus = estatusBody === null ? !Boolean(current.estatus) : estatusBody;
 
-    // 3) Actualizar únicamente estatus + updated_at
     const upd = await client.query(
       `
         UPDATE public.tour_pax
@@ -79,3 +66,7 @@ export async function EstatusActividadPax(req, res) {
     client.release();
   }
 }
+
+// Exporta AMBOS: named y default (para que sirva con cualquier import)
+export { EstatusActividadPax };
+export default EstatusActividadPax;
