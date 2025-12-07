@@ -16,11 +16,11 @@ async function codigoDetallesGlobalOtrasTablas(client, codigo) {
   const sql = `
     WITH q AS (SELECT LOWER(TRIM($1)) AS c)
     SELECT cat, nombre FROM (
-      SELECT 'anp'  AS cat, COALESCE(t.nombre, t.codigo)          AS nombre FROM tours         t,  q WHERE LOWER(TRIM(t.codigo))  = q.c
+      SELECT 'anp'   AS cat, COALESCE(t.nombre, t.codigo)          AS nombre FROM tours         t,  q WHERE LOWER(TRIM(t.codigo))  = q.c
       UNION ALL
-      SELECT 'dur'  AS cat, COALESCE(td.nombre, td.codigo)        AS nombre FROM tourduracion  td, q WHERE LOWER(TRIM(td.codigo)) = q.c
+      SELECT 'dur'   AS cat, COALESCE(td.nombre, td.codigo)        AS nombre FROM tourduracion  td, q WHERE LOWER(TRIM(td.codigo)) = q.c
       UNION ALL
-      SELECT 'combo' AS cat, COALESCE(tc.nombre_combo, tc.codigo) AS nombre FROM tours_combo  tc, q WHERE LOWER(TRIM(tc.codigo)) = q.c
+      SELECT 'combo' AS cat, COALESCE(tc.nombre_combo, tc.codigo)  AS nombre FROM tours_combo   tc, q WHERE LOWER(TRIM(tc.codigo)) = q.c
     ) s
     LIMIT 50;
   `;
@@ -48,17 +48,16 @@ const trimOrNull = (v) => {
 };
 
 export async function actualizarActividadPax(req, res) {
-  // Usamos el parámetro de ruta como CODIGO de la fila a actualizar (puede traer guiones).
-  // Decodificamos por si viene URL-encoded.
-  const codigoPath = decodeURIComponent(String(req.params?.id ?? '').trim());
+  // ⚠️ En esta ruta el parámetro :id es el CODIGO, no un ID numérico.
+  const codigoPath = String(req.params?.id ?? '').trim();
   if (!codigoPath) {
     return res.status(400).json({ error: 'Código inválido en la ruta' });
   }
 
   // Body desde el iframe
   const b = req.body || {};
-  const _codigo        = (trimOrNull(b.codigo) || '').trim();        // nuevo código (puede cambiar; permite guiones)
-  const _actividad     = (trimOrNull(b.actividad ?? b.nombre) || '').trim();
+  const _codigo        = trimOrNull(b.codigo) ?? '';                 // nuevo código (puede cambiar, admite guiones)
+  const _actividad     = trimOrNull(b.actividad ?? b.nombre) ?? '';
   const _moneda        = (trimOrNull(b.moneda) || 'USD').toUpperCase();
   const _proveedor     = trimOrNull(b.proveedor);
 
@@ -71,8 +70,12 @@ export async function actualizarActividadPax(req, res) {
   const _precio_normal = toNumOrNull(b.precionormal_adulto ?? b.precio_normal);
   const _precio_opc    = toNumOrNull(b.precioopc_adulto ?? b.precioopc);
 
-  // actividad_id puede ser text o int en la DB; lo trataremos como texto para evitar errores de operador.
-  const _actividad_id_txt = trimOrNull(b.actividad_id); // puede ser null o '123'
+  // actividad_id puede venir vacío -> null
+  const actividadIdRaw = trimOrNull(b.actividad_id);
+  const _actividad_id  = actividadIdRaw === null ? null : Number(actividadIdRaw);
+  if (actividadIdRaw !== null && !Number.isFinite(_actividad_id)) {
+    return res.status(400).json({ error: 'actividad_id inválido' });
+  }
 
   // Requeridos
   if (!_codigo || !_actividad || !_duracion || !_moneda) {
@@ -83,12 +86,8 @@ export async function actualizarActividadPax(req, res) {
   try {
     await client.query('BEGIN');
 
-    // 🔒 Lock por código destino (para evitar carreras)
-    // Bloqueamos el código nuevo y el código actual (si son distintos) para evitar condiciones de carrera.
+    // 🔒 Lock por código destino (para evitar condiciones de carrera al actualizar por código)
     await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [_codigo]);
-    if (_codigo.toLowerCase().trim() !== codigoPath.toLowerCase().trim()) {
-      await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [codigoPath]);
-    }
 
     // 1) Validación global del código en otras tablas (no tour_pax)
     const dupOtras = await codigoDetallesGlobalOtrasTablas(client, _codigo);
@@ -103,15 +102,14 @@ export async function actualizarActividadPax(req, res) {
       });
     }
 
-    // 2) Si cambian el código, asegurarnos que no exista otro registro en tour_pax con ese nuevo código.
-    // (comparamos por texto en minúsculas/trim; NO usamos "id" porque no existe en esta tabla)
+    // 2) Si cambian el código, que no exista otra fila en tour_pax con ese nuevo código (case/trim insensitive)
     const { rows: existeNuevo } = await client.query(
       `
-        SELECT 1
-          FROM tour_pax
-         WHERE LOWER(TRIM(codigo)) = LOWER(TRIM($1))
-           AND LOWER(TRIM(codigo)) <> LOWER(TRIM($2))
-         LIMIT 1
+      SELECT 1
+        FROM tour_pax
+       WHERE LOWER(TRIM(codigo)) = LOWER(TRIM($1))
+         AND LOWER(TRIM(codigo)) <> LOWER(TRIM($2))
+       LIMIT 1
       `,
       [_codigo, codigoPath]
     );
@@ -124,20 +122,18 @@ export async function actualizarActividadPax(req, res) {
       });
     }
 
-    // 3) Validación: duración duplicada dentro del mismo grupo (actividad_id),
-    // excluyendo esta misma fila (por codigoPath). Convertimos actividad_id a texto para evitar
-    // "operator does not exist: text = integer" si la columna es text.
-    if (_actividad_id_txt) {
+    // 3) Validación: duración duplicada dentro del mismo grupo (actividad_id), excluyendo esta misma fila (por codigoPath)
+    if (_actividad_id !== null) {
       const { rows: du } = await client.query(
         `
-          SELECT 1
-            FROM tour_pax
-           WHERE LOWER(TRIM(codigo)) <> LOWER(TRIM($1))
-             AND COALESCE(actividad_id::text,'') = COALESCE($2::text,'')
-             AND LOWER(TRIM(duracion)) = LOWER(TRIM($3))
-           LIMIT 1
+        SELECT 1
+          FROM tour_pax
+         WHERE LOWER(TRIM(codigo)) <> LOWER(TRIM($1))
+           AND actividad_id = $2::int
+           AND LOWER(TRIM(duracion)) = LOWER(TRIM($3))
+         LIMIT 1
         `,
-        [codigoPath, _actividad_id_txt, _duracion]
+        [codigoPath, _actividad_id, _duracion]
       );
       if (du.length) {
         await client.query('ROLLBACK');
@@ -163,11 +159,11 @@ export async function actualizarActividadPax(req, res) {
              precioopc     = $9,
              moneda        = $10,
              proveedor     = $11,
-             actividad_id  = CASE WHEN $12 IS NULL OR $12 = '' THEN NULL ELSE $12::text END,
+             actividad_id  = $12::int,   -- 👈 TIPADO EXPLÍCITO (acepta NULL)
              updated_at    = NOW()
        WHERE LOWER(TRIM(codigo)) = LOWER(TRIM($13))
        RETURNING
-             codigo,            -- clave
+             codigo,
              actividad,
              duracion, duracion_es,
              capacidad, capacidad_es,
@@ -176,19 +172,19 @@ export async function actualizarActividadPax(req, res) {
              created_at, updated_at, estatus
     `;
     const params = [
-      _codigo,
-      _actividad,
-      _duracion,
-      _duracion_es,
-      _capacidad,
-      _capacidad_es,
-      _precio,
-      _precio_normal,
-      _precio_opc,
-      _moneda,
-      _proveedor,
-      _actividad_id_txt, // guardamos como texto (o null)
-      codigoPath,        // WHERE por el código original de la ruta
+      _codigo,           // $1
+      _actividad,        // $2
+      _duracion,         // $3
+      _duracion_es,      // $4
+      _capacidad,        // $5
+      _capacidad_es,     // $6
+      _precio,           // $7
+      _precio_normal,    // $8
+      _precio_opc,       // $9
+      _moneda,           // $10
+      _proveedor,        // $11
+      _actividad_id,     // $12  -> será null o number (el ::int del SQL resuelve el tipo)
+      codigoPath,        // $13
     ];
 
     const { rows } = await client.query(sql, params);
@@ -204,7 +200,7 @@ export async function actualizarActividadPax(req, res) {
     await client.query('ROLLBACK').catch(() => {});
     console.error('💥 actualizarActividadPax error:', err);
 
-    // Por si tienes UNIQUE(codigo) y lo dispara Postgres
+    // UNIQUE(codigo) (si lo tienes)
     if (err && err.code === '23505') {
       return res.status(409).json({
         error: 'Error: El código que intentas registrar ya existe, favor de confirmar.',
