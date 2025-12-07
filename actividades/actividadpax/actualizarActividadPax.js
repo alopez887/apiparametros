@@ -5,11 +5,11 @@ import pool from '../../conexion.js';
  * PATCH /api/actividades-pax/:id/estatus
  * :id es el CODIGO (no ID numérico).
  * - Si body trae { estatus: true|false } fija ese valor.
- * - Si no trae "estatus", hace toggle del valor actual.
+ * - Si no trae "estatus", hace toggle.
  * - Actualiza updated_at = NOW().
  * Respuesta: { ok:true, data:{ codigo, estatus, updated_at } }
  */
-async function EstatusActividadPax(req, res) {
+export const EstatusActividadPax = async (req, res) => {
   const codigoPath = String(req.params?.id ?? '').trim();
   if (!codigoPath) {
     return res.status(400).json({ error: 'Código inválido en la ruta' });
@@ -65,8 +65,4 @@ async function EstatusActividadPax(req, res) {
   } finally {
     client.release();
   }
-}
-
-// Exporta AMBOS: named y default (para que sirva con cualquier import)
-export { EstatusActividadPax };
-export default EstatusActividadPax;
+};
