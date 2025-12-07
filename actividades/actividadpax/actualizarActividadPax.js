@@ -1,39 +1,42 @@
-// actividades/actividadestandar/actualizarActividad.js
+// actividades/actividadpax/actualizarActividadPax.js
 import pool from '../../conexion.js';
 
 /* =========================
  * Catálogos (mismos labels que en AGREGAR)
  * ========================= */
 const LABELS = {
-  anp:  { es: 'Adultos / Niños / Persona',          en: 'Adults / Children / Per person' },
-  dur:  { es: 'Actividades por duración (tiempo)',  en: 'Activities by duration (time)' },
-  pax:  { es: 'Actividades por PAX (grupo)',        en: 'Activities by PAX (group)' },
-  combo:{ es: 'Combos de actividades',              en: 'Activity combos' },
+  anp:   { es: 'Adultos / Niños / Persona',          en: 'Adults / Children / Per person' },
+  dur:   { es: 'Actividades por duración (tiempo)',  en: 'Activities by duration (time)' },
+  pax:   { es: 'Actividades por PAX (grupo)',        en: 'Activities by PAX (group)' },
+  combo: { es: 'Combos de actividades',              en: 'Activity combos' },
 };
 
 /**
- * Valida un código en TODAS las tablas, excluyendo el propio registro de `tours` (anp)
+ * Valida un código en TODAS las tablas, excluyendo el propio registro en tour_pax (selfId).
  * Devuelve: [{ table:'dur'|'pax'|'anp'|'combo', nombre, label_es, label_en }]
  */
-async function codigoDetallesGlobalExceptSelf(client, codigo, selfId) {
+async function codigoDetallesGlobalExceptSelfPax(client, codigo, selfId) {
   const sql = `
     WITH q AS (SELECT LOWER(TRIM($1)) AS c)
     SELECT cat, nombre FROM (
-      -- tours (anp) EXCLUYENDO el propio id
-      SELECT 'anp' AS cat, COALESCE(t.nombre, t.codigo) AS nombre
+      -- tours (anp)
+      SELECT 'anp'  AS cat, COALESCE(t.nombre, t.codigo) AS nombre
         FROM tours t, q
        WHERE LOWER(TRIM(t.codigo)) = q.c
-         AND t.id <> $2::int
+
       UNION ALL
       -- tourduracion (dur)
-      SELECT 'dur' AS cat, COALESCE(td.nombre, td.codigo) AS nombre
+      SELECT 'dur'  AS cat, COALESCE(td.nombre, td.codigo) AS nombre
         FROM tourduracion td, q
        WHERE LOWER(TRIM(td.codigo)) = q.c
+
       UNION ALL
-      -- tour_pax (pax)
-      SELECT 'pax' AS cat, COALESCE(tp.actividad, tp.codigo) AS nombre
+      -- tour_pax (pax) EXCLUYENDO el propio id
+      SELECT 'pax'  AS cat, COALESCE(tp.actividad, tp.codigo) AS nombre
         FROM tour_pax tp, q
        WHERE LOWER(TRIM(tp.codigo)) = q.c
+         AND tp.id <> $2::int
+
       UNION ALL
       -- tours_combo (combo)
       SELECT 'combo' AS cat, COALESCE(tc.nombre_combo, tc.codigo) AS nombre
@@ -65,7 +68,7 @@ const trimOrNull = (v) => {
   return s === '' ? null : s;
 };
 
-export async function actualizarActividad(req, res) {
+export async function actualizarActividadPax(req, res) {
   const { id } = req.params || {};
   const idNum = Number(id);
 
@@ -73,75 +76,105 @@ export async function actualizarActividad(req, res) {
     return res.status(400).json({ error: 'ID inválido' });
   }
 
-  // Body esperado desde tu iframe
+  // Body esperado desde tu iframe PAX
   const body = req.body || {};
-  const _codigo     = trimOrNull(body.codigo) ?? '';
-  const _nombre     = trimOrNull(body.nombre) ?? '';
-  const _moneda     = (trimOrNull(body.moneda) || 'USD').toUpperCase();
-  const _proveedor  = trimOrNull(body.proveedor);
+  const _codigo        = trimOrNull(body.codigo) ?? '';
+  const _actividad     = trimOrNull(body.nombre) ?? '';            // campo real en tour_pax = "actividad"
+  const _moneda        = (trimOrNull(body.moneda) || 'USD').toUpperCase();
+  const _proveedor     = trimOrNull(body.proveedor);
+  const _duracion      = trimOrNull(body.duracion);                // requerido
+  const _duracion_es   = trimOrNull(body.duracion_es);
+  const _capacidad     = trimOrNull(body.capacidad);
+  const _capacidad_es  = trimOrNull(body.capacidad_es);
+  const _precio        = toNumOrNull(body.precio_adulto ?? body.precio);          // mapeo desde front
+  const _precio_normal = toNumOrNull(body.precionormal_adulto ?? body.precio_normal);
+  const _precio_opc    = toNumOrNull(body.precioopc_adulto ?? body.precioopc);
+  const _actividad_id  = trimOrNull(body.actividad_id); // puede ser null (nuevo grupo implícito)
 
-  if (!_codigo || !_nombre || !_moneda) {
-    return res.status(400).json({ error: 'Faltan campos requeridos: codigo, nombre, moneda' });
+  // Requeridos para PAX: código, actividad, duración, moneda
+  if (!_codigo || !_actividad || !_duracion || !_moneda) {
+    return res.status(400).json({ error: 'Faltan campos requeridos: codigo, actividad, duracion, moneda' });
   }
-
-  // Precios -> null si no hay
-  const _precio_adulto         = toNumOrNull(body.precio_adulto);
-  const _precio_nino           = toNumOrNull(body.precio_nino);
-  const _precionormal_adulto   = toNumOrNull(body.precionormal_adulto);
-  const _precionormal_nino     = toNumOrNull(body.precionormal_nino);
-  const _precioopc_adulto      = toNumOrNull(body.precioopc_adulto);
-  const _precioopc_nino        = toNumOrNull(body.precioopc_nino);
 
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
 
-    // 🔒 Evita carreras por el mismo código (mismo patrón que AGREGAR)
+    // 🔒 Evita carreras por el mismo código
     await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [_codigo]);
 
-    // ===== Validación GLOBAL del código (excluye a sí mismo en tours) =====
-    const dupList = await codigoDetallesGlobalExceptSelf(client, _codigo, idNum);
+    // ===== Validación GLOBAL del código (excluye a sí mismo en tour_pax) =====
+    const dupList = await codigoDetallesGlobalExceptSelfPax(client, _codigo, idNum);
     if (dupList.length > 0) {
       const nombresES = [...new Set(dupList.map(d => d.label_es))].join(', ');
-      // MISMA FRASE que en AGREGAR/DURACIÓN
       const msg = `Error: El código que intentas registrar ya existe en: ${nombresES}.`;
-
       await client.query('ROLLBACK');
       return res.status(409).json({
         error: msg,
         code: 'duplicate',
         fields: { codigo: true },
-        catalogs: dupList, // Para que el front pueda mostrar etiquetas ES/EN si quiere
+        catalogs: dupList,
       });
     }
 
-    // ===== UPDATE en tours =====
+    // ===== Validación: duración duplicada dentro del mismo grupo (actividad_id) =====
+    if (_actividad_id) {
+      const sqlDupDur = `
+        SELECT 1
+          FROM tour_pax
+         WHERE id <> $1
+           AND COALESCE(actividad_id::text, '') = $2
+           AND LOWER(TRIM(duracion)) = LOWER(TRIM($3))
+         LIMIT 1;
+      `;
+      const { rows: du } = await client.query(sqlDupDur, [idNum, String(_actividad_id), _duracion]);
+      if (du.length) {
+        await client.query('ROLLBACK');
+        return res.status(409).json({
+          error: 'Error: La duración que intentas registrar ya existe en ese grupo, favor de confirmar.',
+          code: 'duplicate',
+          fields: { duracion: true },
+        });
+      }
+    }
+
+    // ===== UPDATE en tour_pax =====
     const sql = `
-      UPDATE public.tours
-         SET codigo               = $1,
-             nombre               = $2,
-             moneda               = $3,
-             precio_adulto        = $4::numeric::money,
-             precio_nino          = $5::numeric::money,
-             precionormal_adulto  = $6::numeric::money,
-             precionormal_nino    = $7::numeric::money,
-             precioopc_adulto     = $8::numeric::money,
-             precioopc_nino       = $9::numeric::money,
-             proveedor            = $10,
-             updated_at           = NOW()
-       WHERE id = $11
-       RETURNING id, codigo, nombre, moneda, proveedor,
-                 precio_adulto, precio_nino,
-                 precionormal_adulto, precionormal_nino,
-                 precioopc_adulto, precioopc_nino,
-                 created_at, updated_at
+      UPDATE public.tour_pax
+         SET codigo        = $1,
+             actividad     = $2,
+             duracion      = $3,
+             duracion_es   = $4,
+             capacidad     = $5,
+             capacidad_es  = $6,
+             precio        = $7,           -- numeric
+             precio_normal = $8,           -- numeric
+             precioopc     = $9,           -- numeric
+             moneda        = $10,
+             proveedor     = $11,
+             actividad_id  = $12,
+             updated_at    = NOW()
+       WHERE id = $13
+       RETURNING id, codigo, actividad, duracion, duracion_es,
+                 capacidad, capacidad_es,
+                 precio, precio_normal, precioopc,
+                 moneda, proveedor, actividad_id,
+                 created_at, updated_at, estatus
     `;
     const params = [
-      _codigo, _nombre, _moneda,
-      _precio_adulto, _precio_nino,
-      _precionormal_adulto, _precionormal_nino,
-      _precioopc_adulto, _precioopc_nino,
-      _proveedor, idNum
+      _codigo,
+      _actividad,
+      _duracion,
+      _duracion_es,
+      _capacidad,
+      _capacidad_es,
+      _precio,
+      _precio_normal,
+      _precio_opc,
+      _moneda,
+      _proveedor,
+      _actividad_id,
+      idNum,
     ];
 
     const { rows } = await client.query(sql, params);
@@ -155,9 +188,9 @@ export async function actualizarActividad(req, res) {
 
   } catch (err) {
     await client.query('ROLLBACK').catch(() => {});
-    console.error('💥 actualizarActividad error:', err);
+    console.error('💥 actualizarActividadPax error:', err);
 
-    // Respaldo por UNIQUE (por si algo se cuela)
+    // Respaldo por UNIQUE
     if (err && err.code === '23505') {
       return res.status(409).json({
         error: 'Error: El código que intentas registrar ya existe, favor de confirmar.',
@@ -172,4 +205,4 @@ export async function actualizarActividad(req, res) {
   }
 }
 
-export default actualizarActividad;
+export default actualizarActividadPax;
