@@ -16,11 +16,11 @@ async function codigoDetallesGlobalOtrasTablas(client, codigo) {
   const sql = `
     WITH q AS (SELECT LOWER(TRIM($1)) AS c)
     SELECT cat, nombre FROM (
-      SELECT 'anp'  AS cat, COALESCE(t.nombre, t.codigo)         AS nombre FROM tours         t,  q WHERE LOWER(TRIM(t.codigo))  = q.c
+      SELECT 'anp'  AS cat, COALESCE(t.nombre, t.codigo)          AS nombre FROM tours         t,  q WHERE LOWER(TRIM(t.codigo))  = q.c
       UNION ALL
-      SELECT 'dur'  AS cat, COALESCE(td.nombre, td.codigo)       AS nombre FROM tourduracion  td, q WHERE LOWER(TRIM(td.codigo)) = q.c
+      SELECT 'dur'  AS cat, COALESCE(td.nombre, td.codigo)        AS nombre FROM tourduracion  td, q WHERE LOWER(TRIM(td.codigo)) = q.c
       UNION ALL
-      SELECT 'combo' AS cat, COALESCE(tc.nombre_combo, tc.codigo) AS nombre FROM tours_combo tc, q WHERE LOWER(TRIM(tc.codigo)) = q.c
+      SELECT 'combo' AS cat, COALESCE(tc.nombre_combo, tc.codigo) AS nombre FROM tours_combo  tc, q WHERE LOWER(TRIM(tc.codigo)) = q.c
     ) s
     LIMIT 50;
   `;
@@ -48,16 +48,17 @@ const trimOrNull = (v) => {
 };
 
 export async function actualizarActividadPax(req, res) {
-  // Usamos el parámetro de ruta como CODIGO de la fila a actualizar
-  const codigoPath = String(req.params?.id ?? '').trim(); // tu ruta es .../actividades-pax/:id pero es el código
+  // Usamos el parámetro de ruta como CODIGO de la fila a actualizar (puede traer guiones).
+  // Decodificamos por si viene URL-encoded.
+  const codigoPath = decodeURIComponent(String(req.params?.id ?? '').trim());
   if (!codigoPath) {
     return res.status(400).json({ error: 'Código inválido en la ruta' });
   }
 
   // Body desde el iframe
   const b = req.body || {};
-  const _codigo        = trimOrNull(b.codigo) ?? '';                 // nuevo código (puede cambiar)
-  const _actividad     = trimOrNull(b.actividad ?? b.nombre) ?? '';
+  const _codigo        = (trimOrNull(b.codigo) || '').trim();        // nuevo código (puede cambiar; permite guiones)
+  const _actividad     = (trimOrNull(b.actividad ?? b.nombre) || '').trim();
   const _moneda        = (trimOrNull(b.moneda) || 'USD').toUpperCase();
   const _proveedor     = trimOrNull(b.proveedor);
 
@@ -70,8 +71,8 @@ export async function actualizarActividadPax(req, res) {
   const _precio_normal = toNumOrNull(b.precionormal_adulto ?? b.precio_normal);
   const _precio_opc    = toNumOrNull(b.precioopc_adulto ?? b.precioopc);
 
-  const actividadIdRaw = trimOrNull(b.actividad_id);
-  const _actividad_id  = actividadIdRaw ? Number(actividadIdRaw) : null;
+  // actividad_id puede ser text o int en la DB; lo trataremos como texto para evitar errores de operador.
+  const _actividad_id_txt = trimOrNull(b.actividad_id); // puede ser null o '123'
 
   // Requeridos
   if (!_codigo || !_actividad || !_duracion || !_moneda) {
@@ -83,7 +84,11 @@ export async function actualizarActividadPax(req, res) {
     await client.query('BEGIN');
 
     // 🔒 Lock por código destino (para evitar carreras)
+    // Bloqueamos el código nuevo y el código actual (si son distintos) para evitar condiciones de carrera.
     await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [_codigo]);
+    if (_codigo.toLowerCase().trim() !== codigoPath.toLowerCase().trim()) {
+      await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [codigoPath]);
+    }
 
     // 1) Validación global del código en otras tablas (no tour_pax)
     const dupOtras = await codigoDetallesGlobalOtrasTablas(client, _codigo);
@@ -98,10 +103,16 @@ export async function actualizarActividadPax(req, res) {
       });
     }
 
-    // 2) Si cambian el código, asegurarnos que no exista otro registro en tour_pax con ese nuevo código
-    //    (por si aún no tienes UNIQUE(codigo) en la tabla)
+    // 2) Si cambian el código, asegurarnos que no exista otro registro en tour_pax con ese nuevo código.
+    // (comparamos por texto en minúsculas/trim; NO usamos "id" porque no existe en esta tabla)
     const { rows: existeNuevo } = await client.query(
-      `SELECT 1 FROM tour_pax WHERE LOWER(TRIM(codigo)) = LOWER(TRIM($1)) AND LOWER(TRIM(codigo)) <> LOWER(TRIM($2)) LIMIT 1`,
+      `
+        SELECT 1
+          FROM tour_pax
+         WHERE LOWER(TRIM(codigo)) = LOWER(TRIM($1))
+           AND LOWER(TRIM(codigo)) <> LOWER(TRIM($2))
+         LIMIT 1
+      `,
       [_codigo, codigoPath]
     );
     if (existeNuevo.length) {
@@ -113,18 +124,20 @@ export async function actualizarActividadPax(req, res) {
       });
     }
 
-    // 3) Validación: duración duplicada dentro del mismo grupo (actividad_id), excluyendo esta misma fila (por codigoPath)
-    if (_actividad_id !== null) {
+    // 3) Validación: duración duplicada dentro del mismo grupo (actividad_id),
+    // excluyendo esta misma fila (por codigoPath). Convertimos actividad_id a texto para evitar
+    // "operator does not exist: text = integer" si la columna es text.
+    if (_actividad_id_txt) {
       const { rows: du } = await client.query(
         `
-        SELECT 1
-          FROM tour_pax
-         WHERE LOWER(TRIM(codigo)) <> LOWER(TRIM($1))
-           AND actividad_id = $2::int
-           AND LOWER(TRIM(duracion)) = LOWER(TRIM($3))
-         LIMIT 1
+          SELECT 1
+            FROM tour_pax
+           WHERE LOWER(TRIM(codigo)) <> LOWER(TRIM($1))
+             AND COALESCE(actividad_id::text,'') = COALESCE($2::text,'')
+             AND LOWER(TRIM(duracion)) = LOWER(TRIM($3))
+           LIMIT 1
         `,
-        [codigoPath, _actividad_id, _duracion]
+        [codigoPath, _actividad_id_txt, _duracion]
       );
       if (du.length) {
         await client.query('ROLLBACK');
@@ -150,11 +163,11 @@ export async function actualizarActividadPax(req, res) {
              precioopc     = $9,
              moneda        = $10,
              proveedor     = $11,
-             actividad_id  = $12,
+             actividad_id  = CASE WHEN $12 IS NULL OR $12 = '' THEN NULL ELSE $12::text END,
              updated_at    = NOW()
        WHERE LOWER(TRIM(codigo)) = LOWER(TRIM($13))
        RETURNING
-             codigo,            -- ← clave
+             codigo,            -- clave
              actividad,
              duracion, duracion_es,
              capacidad, capacidad_es,
@@ -174,8 +187,8 @@ export async function actualizarActividadPax(req, res) {
       _precio_opc,
       _moneda,
       _proveedor,
-      _actividad_id,
-      codigoPath, // WHERE por el código original de la ruta
+      _actividad_id_txt, // guardamos como texto (o null)
+      codigoPath,        // WHERE por el código original de la ruta
     ];
 
     const { rows } = await client.query(sql, params);
@@ -185,7 +198,6 @@ export async function actualizarActividadPax(req, res) {
     }
 
     await client.query('COMMIT');
-    // Mantengo estructura { ok, data }
     return res.json({ ok: true, data: rows[0] });
 
   } catch (err) {
