@@ -1,7 +1,7 @@
 // /actividades/actividadcombo/listarCatalogosCombo.js
-import pool from '../../conexion.js'; // conexion.js está en la raíz
+import pool from '../../conexion.js'; 
 
-export async function listarCatalogosCombo(req, res) {
+export async function listarCatalogosCombo(_req, res) {
   try {
     const sql = `
       WITH base AS (
@@ -37,5 +37,33 @@ export async function listarCatalogosCombo(req, res) {
   } catch (e) {
     console.error('listarCatalogosCombo', e);
     res.status(500).json({ ok: false, error: 'No se pudieron listar catálogos' });
+  }
+}
+
+// ✅ NUEVO: items (actividades) de un catálogo
+export async function listarItemsDeCatalogo(req, res) {
+  try {
+    const id = String(req.params.id || req.query.id || '').trim();
+    if (!id) return res.json({ ok: true, data: [] });
+
+    const sql = `
+      SELECT
+        NULLIF(TRIM(actividad_es), '') AS actividad_es,
+        NULLIF(TRIM(actividad),    '') AS actividad_en
+      FROM public.tours_comboact
+      WHERE id_relacionado = $1
+      ORDER BY COALESCE(NULLIF(TRIM(actividad_es), ''), NULLIF(TRIM(actividad), '')) ASC;
+    `;
+    const r = await pool.query(sql, [id]);
+
+    const data = r.rows.map(x => ({
+      actividad_es: x.actividad_es || null,
+      actividad:    x.actividad_en || null
+    }));
+
+    res.json({ ok: true, data });
+  } catch (e) {
+    console.error('listarItemsDeCatalogo', e);
+    res.status(500).json({ ok: false, error: 'No se pudieron listar las actividades del catálogo' });
   }
 }
