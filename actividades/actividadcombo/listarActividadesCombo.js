@@ -64,7 +64,7 @@ export async function listarActividadesCombo(req, res) {
           ARRAY_REMOVE(ARRAY_AGG(tca.actividad_es ORDER BY tca.actividad_es), NULL) AS actividades_es
         FROM public.tours_comboact AS tca
         WHERE tca.proveedor = c.proveedor
-          AND (tca.habilitado IS TRUE OR tca.habilitado = 't')
+          AND (tca.estatus IS TRUE OR tca.estatus = 't')
       ) AS a ON TRUE
       ${where}
       ORDER BY c.id ASC
