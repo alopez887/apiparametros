@@ -76,6 +76,7 @@ import { EstatusActividadPax } from './actividades/actividadpax/EstatusActividad
 // 🔹 ACTIVIDADES (tabla tours_combo) COMBO
 import { listarActividadesCombo } from './actividades/actividadcombo/listarActividadesCombo.js';
 import { listarCatalogosCombo, listarItemsDeCatalogo } from './actividades/actividadcombo/listarCatalogosCombo.js';
+import { agregarActividadCombo } from './actividades/actividadcombo/agregarActividadCombo.js';
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
@@ -156,6 +157,7 @@ app.patch('/api/actividades-pax/:id/estatus', EstatusActividadPax);
 app.get('/api/combos/listar', listarActividadesCombo);
 app.get('/api/catalogos-combo', listarCatalogosCombo);
 app.get('/api/catalogos-combo/:id/items', listarItemsDeCatalogo);
+app.post('/api/combos/agregar-combo', agregarActividadCombo);
 
 app.use((req, res) => {
   res.status(404).json({ error: 'Ruta no encontrada' });
