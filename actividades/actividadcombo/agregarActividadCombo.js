@@ -1,129 +1,148 @@
-// actividades/actividadcombo/agregarActividadCombo.js
+// actividades/combos/agregarActividadCombo.js
 import pool from '../../conexion.js';
 
+/* =========================
+ * Catálogos (mismas etiquetas que en duración/estándar)
+ * ========================= */
+const LABELS = {
+  anp:   { es: 'Adultos / Niños / Persona',          en: 'Adults / Children / Per person' },
+  dur:   { es: 'Actividades por duración (tiempo)',  en: 'Activities by duration (time)' },
+  pax:   { es: 'Actividades por PAX (grupo)',        en: 'Activities by PAX (group)' },
+  combo: { es: 'Combos de actividades',              en: 'Activity combos' },
+};
+
 /**
- * POST /api/combos/agregar-combo
- * Body esperado:
- *  {
- *    codigo: string (req),
- *    moneda: "USD" | ... (opcional, default "USD"),
- *    nombre_combo: string (al menos uno de nombre_combo / nombre_combo_es),
- *    nombre_combo_es: string,
- *    cantidad_actividades: number (int >=1, req),
- *    precio: number (>=0),
- *    precio_normal: number (>=0),
- *    precio_opc: number (>=0),
- *    proveedor?: string | null
- *  }
+ * Valida un código en TODAS las tablas (tours, tourduracion, tour_pax, tours_combo)
+ * Devuelve: [{ table:'dur'|'pax'|'anp'|'combo', nombre, label_es, label_en }]
+ */
+async function codigoDetallesGlobal(client, codigo) {
+  const sql = `
+    WITH q AS (SELECT LOWER(TRIM($1)) AS c)
+    SELECT cat, nombre FROM (
+      SELECT 'dur'   AS cat, COALESCE(td.nombre, td.codigo)       AS nombre
+        FROM public.tourduracion td, q
+       WHERE LOWER(TRIM(td.codigo)) = q.c
+      UNION ALL
+      SELECT 'pax'   AS cat, COALESCE(tp.actividad, tp.codigo)    AS nombre
+        FROM public.tour_pax tp, q
+       WHERE LOWER(TRIM(tp.codigo)) = q.c
+      UNION ALL
+      SELECT 'anp'   AS cat, COALESCE(t.nombre, t.codigo)         AS nombre
+        FROM public.tours t, q
+       WHERE LOWER(TRIM(t.codigo)) = q.c
+      UNION ALL
+      SELECT 'combo' AS cat, COALESCE(tc.nombre_combo, tc.codigo) AS nombre
+        FROM public.tours_combo tc, q
+       WHERE LOWER(TRIM(tc.codigo)) = q.c
+    ) s
+    LIMIT 50;
+  `;
+  const { rows } = await client.query(sql, [codigo]);
+  return rows.map(r => ({
+    table: r.cat,
+    nombre: r.nombre,
+    label_es: LABELS[r.cat].es,
+    label_en: LABELS[r.cat].en,
+  }));
+}
+
+// Normalizadores
+const toNumOrNull = (v) => {
+  if (v === null || v === undefined || v === '') return null;
+  const n = Number(String(v).replace(/[^0-9.\-]/g, ''));
+  return Number.isFinite(n) ? n : null;
+};
+const trimOrNull = (v) => {
+  if (v === null || v === undefined) return null;
+  const s = String(v).trim();
+  return s === '' ? null : s;
+};
+
+/**
+ * Inserta en tours_combo (con validación GLOBAL de código)
  */
 export async function agregarActividadCombo(req, res) {
-  try {
-    const b = req.body || {};
+  const b = req.body || {};
 
-    // Normalizaciones básicas
-    const codigo = String(b.codigo || '').trim().toUpperCase();
-    const moneda = String(b.moneda || 'USD').trim().toUpperCase();
+  // Requeridos
+  const codigo           = trimOrNull(b.codigo);
+  const moneda           = (trimOrNull(b.moneda) || 'USD').toUpperCase();
+  const nombre_combo     = trimOrNull(b.nombre_combo);     // EN
+  const nombre_combo_es  = trimOrNull(b.nombre_combo_es);  // ES
 
-    const nombre_combo    = String(b.nombre_combo || '').trim();
-    const nombre_combo_es = String(b.nombre_combo_es || '').trim();
-    const proveedor       = (b.proveedor == null ? null : String(b.proveedor).trim()) || null;
-
-    const cantidad_actividades = Number.isFinite(Number(b.cantidad_actividades))
-      ? parseInt(b.cantidad_actividades, 10)
-      : NaN;
-
-    const precio        = Number.isFinite(Number(b.precio))        ? Number(b.precio)        : 0;
-    const precio_normal = Number.isFinite(Number(b.precio_normal)) ? Number(b.precio_normal) : 0;
-    const precioopc     = Number.isFinite(Number(b.precio_opc))    ? Number(b.precio_opc)    : 0;
-
-    // Validaciones mínimas
-    if (!codigo) {
-      return res.status(400).json({ ok: false, error: 'El campo "codigo" es requerido.' });
-    }
-    if (!nombre_combo && !nombre_combo_es) {
-      return res.status(400).json({ ok: false, error: 'Debe indicar "nombre_combo" o "nombre_combo_es".' });
-    }
-    if (!Number.isFinite(cantidad_actividades) || cantidad_actividades < 1) {
-      return res.status(400).json({ ok: false, error: 'El campo "cantidad_actividades" debe ser un entero >= 1.' });
-    }
-    if (!moneda) {
-      return res.status(400).json({ ok: false, error: 'El campo "moneda" es requerido.' });
-    }
-
-    // Verificación de duplicados de código across catálogos
-    // Map a etiquetas para mensaje consistente con el front
-    const dupSql = `
-      SELECT 'ANP'::text AS catalog, codigo FROM public.tours WHERE UPPER(codigo) = $1
-      UNION ALL
-      SELECT 'DURACION'::text AS catalog, codigo FROM public.tourduracion WHERE UPPER(codigo) = $1
-      UNION ALL
-      SELECT 'PAX'::text AS catalog, codigo FROM public.tour_pax WHERE UPPER(codigo) = $1
-      UNION ALL
-      SELECT 'COMBO'::text AS catalog, codigo FROM public.tours_combo WHERE UPPER(codigo) = $1
-    `;
-    const dupCheck = await pool.query(dupSql, [codigo]);
-    if (dupCheck.rows && dupCheck.rows.length) {
-      // Construimos etiquetas legibles
-      const labelMap = {
-        ANP:        'Adultos/Niños/Persona',
-        DURACION:   'Duración',
-        PAX:        'PAX',
-        COMBO:      'Combos'
-      };
-      const labels = [...new Set(dupCheck.rows.map(r => labelMap[r.catalog] || r.catalog))];
-      return res.status(409).json({
-        ok: false,
-        error: 'Código duplicado en otros catálogos.',
-        catalogs: labels
-      });
-    }
-
-    // Insert en tours_combo
-    // estatus: true por defecto (activo)
-    const insertSql = `
-      INSERT INTO public.tours_combo
-        (codigo, moneda, nombre_combo, nombre_combo_es, cantidad_actividades,
-         precio, precio_normal, precioopc, proveedor, estatus, created_at, updated_at)
-      VALUES
-        ($1,     $2,     $3,           $4,             $5,
-         $6,     $7,           $8,      $9,        TRUE,    NOW(),     NOW())
-      RETURNING
-        id, codigo, moneda, nombre_combo, nombre_combo_es, cantidad_actividades,
-        precio, precio_normal, precioopc, proveedor, estatus, created_at, updated_at
-    `;
-
-    const params = [
-      codigo,
-      moneda,
-      nombre_combo || null,
-      nombre_combo_es || null,
-      cantidad_actividades,
-      precio,
-      precio_normal,
-      precioopc,
-      proveedor
-    ];
-
-    const { rows } = await pool.query(insertSql, params);
-    const row = rows?.[0];
-
-    return res.status(201).json({
-      ok: true,
-      data: row
-    });
-  } catch (err) {
-    console.error('❌ agregarActividadCombo:', err);
-    // Si el esquema ya tiene una unique constraint en tours_combo(codigo)
-    // atrapamos violación de unique para responder 409
-    if (err && err.code === '23505') {
-      return res.status(409).json({
-        ok: false,
-        error: 'El código ya existe en Combos.'
-      });
-    }
-    return res.status(500).json({
-      ok: false,
-      error: 'No se pudo crear el combo'
+  if (!codigo || !moneda || !(nombre_combo || nombre_combo_es)) {
+    return res.status(400).json({
+      error: 'Faltan campos obligatorios: codigo, moneda y al menos un nombre (EN o ES).',
     });
   }
+
+  // Opcionales
+  const proveedor            = trimOrNull(b.proveedor);
+  const cantidad_actividades = toNumOrNull(b.cantidad_actividades);
+  const precio               = toNumOrNull(b.precio);
+  const precio_normal        = toNumOrNull(b.precio_normal);
+  const precioopc            = toNumOrNull(b.precioopc);
+  const id_relacionado       = toNumOrNull(b.id_relacionado); // por si agrupas catálogos
+
+  // INSERT parametrizado (ajusta columnas si tu tabla tiene otras)
+  const text = `
+    INSERT INTO public.tours_combo
+      (codigo, nombre_combo, nombre_combo_es, moneda,
+       proveedor, cantidad_actividades, precio, precio_normal, precioopc, id_relacionado)
+    VALUES
+      ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+    RETURNING id, codigo, nombre_combo, nombre_combo_es, moneda, proveedor,
+              cantidad_actividades, precio, precio_normal, precioopc,
+              id_relacionado, created_at, updated_at
+  `;
+  const params = [
+    codigo, nombre_combo, nombre_combo_es, moneda,
+    proveedor, cantidad_actividades, precio, precio_normal, precioopc,
+    id_relacionado
+  ];
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    // 🔒 Evita carreras simultáneas por mismo código
+    await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [codigo]);
+
+    // ===== Validación GLOBAL (4 catálogos) =====
+    const dupList = await codigoDetallesGlobal(client, codigo);
+    if (dupList.length > 0) {
+      const nombresES = [...new Set(dupList.map(d => d.label_es))].join(', ');
+      const msg = `Error: El código que intentas registrar ya existe en: ${nombresES}.`;
+      await client.query('ROLLBACK');
+      return res.status(409).json({
+        error: msg,
+        code: 'duplicate',
+        fields: { codigo: true },
+        catalogs: dupList, // <-- para que el front pinte exactamente dónde
+      });
+    }
+
+    // ===== INSERT en tours_combo =====
+    const { rows } = await client.query(text, params);
+    await client.query('COMMIT');
+    return res.status(201).json({ ok: true, data: rows?.[0] ?? null });
+
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    console.error('💥 agregarActividadCombo error:', err);
+
+    // Respaldo por UNIQUE constraint
+    if (err && err.code === '23505') {
+      return res.status(409).json({
+        error: 'Error: El código que intentas registrar ya existe, favor de confirmar.',
+        code: 'duplicate',
+        fields: { codigo: true },
+      });
+    }
+    return res.status(500).json({ error: 'Error al crear el combo.' });
+  } finally {
+    client.release();
+  }
 }
+
+export default agregarActividadCombo;
