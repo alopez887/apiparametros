@@ -11,8 +11,9 @@ import pool from '../../conexion.js';
  *   precio, precio_normal, precioopc, moneda, estatus,
  *   created_at, updated_at,
  *   cantidad_actividades,          // lo que podrá elegir el cliente (2,3,5)
- *   total_catalogo,                // cuántas actividades hay en la lista (informativo)
- *   actividades_en[], actividades_es[]
+ *   total_catalogo,                // cuántas actividades hay en ese catálogo
+ *   actividades_en[], actividades_es[], // SOLO del id_relacionado del combo
+ *   id_relacionado
  * }
  */
 export async function listarActividadesCombo(req, res) {
@@ -32,7 +33,7 @@ export async function listarActividadesCombo(req, res) {
       `;
     }
 
-    // Relación por proveedor (tca.id_relacionado no existe en tu tabla)
+    // 🔑 Relaciona por c.id_relacionado (NO por proveedor)
     const sql = `
       SELECT
         c.id,
@@ -47,23 +48,22 @@ export async function listarActividadesCombo(req, res) {
         c.estatus,
         c.created_at,
         c.updated_at,
-
-        /* ✅ número que podrá elegir el cliente (viene de tours_combo) */
         c.cantidad_actividades AS cantidad_actividades,
+        c.id_relacionado,
 
-        /* 🔎 datos informativos tomados del catálogo por proveedor */
-        COALESCE(a.total_catalogo, 0)                  AS total_catalogo,
-        COALESCE(a.actividades_en, ARRAY[]::text[])    AS actividades_en,
-        COALESCE(a.actividades_es, ARRAY[]::text[])    AS actividades_es
+        COALESCE(a.total_catalogo, 0)               AS total_catalogo,
+        COALESCE(a.actividades_en, ARRAY[]::text[]) AS actividades_en,
+        COALESCE(a.actividades_es, ARRAY[]::text[]) AS actividades_es
 
       FROM public.tours_combo AS c
+      /* LATERAL por el mismo id_relacionado del combo */
       LEFT JOIN LATERAL (
         SELECT
           COUNT(*)::int AS total_catalogo,
-          ARRAY_REMOVE(ARRAY_AGG(tca.actividad ORDER BY tca.actividad), NULL)       AS actividades_en,
+          ARRAY_REMOVE(ARRAY_AGG(tca.actividad    ORDER BY tca.actividad),    NULL) AS actividades_en,
           ARRAY_REMOVE(ARRAY_AGG(tca.actividad_es ORDER BY tca.actividad_es), NULL) AS actividades_es
         FROM public.tours_comboact AS tca
-        WHERE tca.proveedor = c.proveedor
+        WHERE tca.id_relacionado = c.id_relacionado   -- ✅ clave del catálogo
           AND (tca.estatus IS TRUE OR tca.estatus = 't')
       ) AS a ON TRUE
       ${where}
