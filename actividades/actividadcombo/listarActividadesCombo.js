@@ -1,73 +1,53 @@
-// actividades/actividadcombo/listarActividadesCombo.js
 import pool from '../../conexion.js';
 
-/**
- * GET /api/combos/listar
- * GET /api/combos/listar?q=CACTUS
- *
- * Devuelve por fila:
- *  id, codigo, nombre_combo, nombre_combo_es, proveedor, precio, precio_normal,
- *  precioopc, moneda, estatus, created_at, updated_at, cantidad_actividades,
- *  total_catalogo, actividades_en[], actividades_es[], id_relacionado
- */
-export async function listarActividadesCombo(req, res) {
+// GET /api/catalogos-combo
+export async function listarCatalogosCombo(req, res) {
   try {
-    const q = (req.query?.q || '').trim();
-    const params = [];
-    let where = '';
-
-    if (q) {
-      params.push(`%${q}%`);
-      where = `
-        WHERE
-          c.codigo ILIKE $1 OR
-          c.nombre_combo ILIKE $1 OR
-          c.nombre_combo_es ILIKE $1 OR
-          c.proveedor ILIKE $1
-      `;
-    }
-
-    // Relaciona por c.id_relacionado y NO toca el proveedor
     const sql = `
       SELECT
-        c.id,
-        c.codigo,
-        c.nombre_combo,
-        c.nombre_combo_es,
-        c.proveedor,                      -- ← proveedor EXACTO del registro
-        c.precio,
-        c.precio_normal,
-        c.precioopc,
-        c.moneda,
-        c.estatus,
-        c.created_at,
-        c.updated_at,
-        c.cantidad_actividades AS cantidad_actividades,
         c.id_relacionado,
-
-        COALESCE(a.total_catalogo, 0)               AS total_catalogo,
-        COALESCE(a.actividades_en, ARRAY[]::text[]) AS actividades_en,
-        COALESCE(a.actividades_es, ARRAY[]::text[]) AS actividades_es
-
-      FROM public.tours_combo AS c
-      LEFT JOIN LATERAL (
-        SELECT
-          COUNT(*)::int AS total_catalogo,
-          ARRAY_REMOVE(ARRAY_AGG(tca.actividad    ORDER BY tca.actividad),    NULL) AS actividades_en,
-          ARRAY_REMOVE(ARRAY_AGG(tca.actividad_es ORDER BY tca.actividad_es), NULL) AS actividades_es
-        FROM public.tours_comboact AS tca
-        WHERE tca.id_relacionado = c.id_relacionado
-          AND (tca.estatus IS TRUE OR tca.estatus = 't')
-      ) AS a ON TRUE
-
-      ${where}
-      ORDER BY c.id ASC
+        -- proveedor del registro más reciente y no vacío dentro del catálogo
+        (ARRAY_REMOVE(
+          ARRAY_AGG(NULLIF(TRIM(c.proveedor), '') ORDER BY c.updated_at DESC),
+          NULL
+        ))[1] AS proveedor,
+        COALESCE((
+          SELECT COUNT(*)::int
+          FROM public.tours_comboact tca
+          WHERE tca.id_relacionado = c.id_relacionado
+            AND (tca.estatus IS TRUE OR tca.estatus = 't')
+        ), 0) AS total_actividades
+      FROM public.tours_combo c
+      GROUP BY c.id_relacionado
+      ORDER BY c.id_relacionado ASC;
     `;
-
-    const { rows } = await pool.query(sql, params);
+    const { rows } = await pool.query(sql);
     return res.json({ ok: true, data: rows });
   } catch (err) {
-    console.error('❌ listarActividadesCombo:', err);
-    return res.status(500).json({ ok: false, error: 'No se pudieron listar los combos' });
+    console.error('❌ /api/catalogos-combo:', err);
+    return res.status(500).json({ ok: false, error: 'No se pudieron listar los catálogos de combos' });
+  }
+}
+
+// (opcional) GET /api/catalogos-combo/:id/items  — si no lo tienes ya
+export async function listarItemsCatalogo(req, res) {
+  try {
+    const id = String(req.params.id || '').trim();
+    if (!id) return res.json({ ok: true, data: [] });
+
+    const sql = `
+      SELECT
+        tca.actividad      AS nombre,
+        tca.actividad_es   AS nombre_es
+      FROM public.tours_comboact tca
+      WHERE tca.id_relacionado = $1
+        AND (tca.estatus IS TRUE OR tca.estatus = 't')
+      ORDER BY COALESCE(NULLIF(TRIM(tca.actividad_es), ''), NULLIF(TRIM(tca.actividad), '')) ASC
+    `;
+    const { rows } = await pool.query(sql, [id]);
+    return res.json({ ok: true, data: rows });
+  } catch (err) {
+    console.error('❌ /api/catalogos-combo/:id/items:', err);
+    return res.status(500).json({ ok: false, error: 'No se pudieron listar las actividades del catálogo' });
   }
 }
