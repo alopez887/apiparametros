@@ -77,6 +77,8 @@ import { EstatusActividadPax } from './actividades/actividadpax/EstatusActividad
 import { listarActividadesCombo } from './actividades/actividadcombo/listarActividadesCombo.js';
 import { listarCatalogosCombo, listarItemsDeCatalogo } from './actividades/actividadcombo/listarCatalogosCombo.js';
 import { agregarActividadCombo } from './actividades/actividadcombo/agregarActividadCombo.js';
+import { actualizarActividadCombo } from './actividades/actividadcombo/actualizarActividadCombo.js';      // ⬅️ NUEVO
+import { cambiarEstatusActividadCombo } from './actividades/actividadcombo/estatusActividadCombo.js'; 
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
@@ -158,6 +160,8 @@ app.get('/api/combos/listar', listarActividadesCombo);
 app.get('/api/catalogos-combo', listarCatalogosCombo);
 app.get('/api/catalogos-combo/:id/items', listarItemsDeCatalogo);
 app.post('/api/combos/agregar-combo', agregarActividadCombo);
+app.put('/api/combos/:id', actualizarActividadCombo);
+app.patch('/api/combos/:id/estatus', cambiarEstatusActividadCombo);
 
 app.use((req, res) => {
   res.status(404).json({ error: 'Ruta no encontrada' });
