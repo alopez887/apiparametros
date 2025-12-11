@@ -27,14 +27,13 @@ export async function listarActividadesCombo(req, res) {
       `;
     }
 
-    // Relaciona por c.id_relacionado y NO toca el proveedor
     const sql = `
       SELECT
         c.id,
         c.codigo,
         c.nombre_combo,
         c.nombre_combo_es,
-        c.proveedor,                      -- ← proveedor EXACTO del registro
+        c.proveedor,                      -- proveedor EXACTO del registro (no se toca)
         c.precio,
         c.precio_normal,
         c.precioopc,
@@ -50,15 +49,52 @@ export async function listarActividadesCombo(req, res) {
         COALESCE(a.actividades_es, ARRAY[]::text[]) AS actividades_es
 
       FROM public.tours_combo AS c
+
+      -- ===== SUBQUERY LATERAL =====
+      -- VERSIÓN A: columnas actividad / actividad_es son TEXT (no arrays)
       LEFT JOIN LATERAL (
         SELECT
           COUNT(*)::int AS total_catalogo,
-          ARRAY_REMOVE(ARRAY_AGG(tca.actividad    ORDER BY tca.actividad),    NULL) AS actividades_en,
-          ARRAY_REMOVE(ARRAY_AGG(tca.actividad_es ORDER BY tca.actividad_es), NULL) AS actividades_es
+          COALESCE(
+            ARRAY_AGG(tca.actividad ORDER BY tca.actividad)
+              FILTER (WHERE tca.actividad IS NOT NULL AND TRIM(tca.actividad) <> ''),
+            ARRAY[]::text[]
+          ) AS actividades_en,
+          COALESCE(
+            ARRAY_AGG(tca.actividad_es ORDER BY tca.actividad_es)
+              FILTER (WHERE tca.actividad_es IS NOT NULL AND TRIM(tca.actividad_es) <> ''),
+            ARRAY[]::text[]
+          ) AS actividades_es
         FROM public.tours_comboact AS tca
         WHERE tca.id_relacionado = c.id_relacionado
           AND (tca.estatus IS TRUE OR tca.estatus = 't')
       ) AS a ON TRUE
+
+      /* 
+      -- VERSIÓN B (usar SOLO si actividad/actividad_es son TEXT[] en la tabla):
+      LEFT JOIN LATERAL (
+        SELECT
+          COUNT(*)::int AS total_catalogo,
+          COALESCE(
+            ARRAY_AGG(val_en ORDER BY val_en)
+              FILTER (WHERE val_en IS NOT NULL AND TRIM(val_en) <> ''),
+            ARRAY[]::text[]
+          ) AS actividades_en,
+          COALESCE(
+            ARRAY_AGG(val_es ORDER BY val_es)
+              FILTER (WHERE val_es IS NOT NULL AND TRIM(val_es) <> ''),
+            ARRAY[]::text[]
+          ) AS actividades_es
+        FROM (
+          SELECT
+            UNNEST(tca.actividad)    AS val_en,
+            UNNEST(tca.actividad_es) AS val_es
+          FROM public.tours_comboact tca
+          WHERE tca.id_relacionado = c.id_relacionado
+            AND (tca.estatus IS TRUE OR tca.estatus = 't')
+        ) u
+      ) AS a ON TRUE
+      */
 
       ${where}
       ORDER BY c.id ASC
