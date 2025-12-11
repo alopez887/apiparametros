@@ -58,7 +58,7 @@ const trimOrNull = (v) => {
   return s === '' ? null : s;
 };
 
-/** Empareja arrays ES/EN a longitud máxima; si uno falta, rellena con el otro */
+/** Empareja arrays ES/EN; si uno falta, rellena con el otro (para mantener pares alineados) */
 function zipActividades(listEs = [], listEn = []) {
   const a = Array.isArray(listEs) ? listEs.map(s => String(s || '').trim()).filter(Boolean) : [];
   const b = Array.isArray(listEn) ? listEn.map(s => String(s || '').trim()).filter(Boolean) : [];
@@ -74,29 +74,10 @@ function zipActividades(listEs = [], listEn = []) {
 }
 
 /**
- * Devuelve true si la columna es de tipo ARRAY en Postgres.
- * (Consultamos information_schema para decidir si mandar string o [string])
- */
-async function isArrayColumn(client, schema, table, column){
-  const sql = `
-    SELECT data_type
-      FROM information_schema.columns
-     WHERE table_schema = $1
-       AND table_name   = $2
-       AND column_name  = $3
-     LIMIT 1;
-  `;
-  const { rows } = await client.query(sql, [schema, table, column]);
-  return (rows[0]?.data_type || '').toUpperCase() === 'ARRAY';
-}
-
-/**
  * Genera un nuevo id_relacionado seguro dentro de la transacción.
- * Usa un advisory lock global para evitar carreras si no existe sequence.
- * Si tienes un sequence, cámbialo por: SELECT nextval('tours_combo_group_seq') AS gid;
+ * Si tienes un SEQUENCE, cámbialo por SELECT nextval('tours_combo_group_seq').
  */
 async function nextCatalogGroupId(client) {
-  // Candado global por nombre lógico del grupo
   await client.query(`SELECT pg_advisory_xact_lock(hashtext('tours_combo_group'))`);
   const { rows } = await client.query(`
     SELECT COALESCE(MAX(id_relacionado), 0) + 1 AS gid
@@ -106,8 +87,8 @@ async function nextCatalogGroupId(client) {
 }
 
 /**
- * Inserta en tours_combo (y opcionalmente tours_comboact si group_mode='new').
- * Mantiene intacto el flujo "Agregar a catálogo existente".
+ * Inserta en tours_combo (y si group_mode='new', crea UNA SOLA FILA en tours_comboact
+ * con actividad text[] y actividad_es text[]).
  */
 export async function agregarActividadCombo(req, res) {
   const b = req.body || {};
@@ -135,15 +116,15 @@ export async function agregarActividadCombo(req, res) {
   const id_rel_body    = toNumOrNull(b.id_relacionado); // solo válido si 'existing'
   const proveedor_body = trimOrNull(b.proveedor);
 
-  // === Listas para nuevo catálogo (opcional)
-  const actividades_es = Array.isArray(b.actividades_es) ? b.actividades_es : [];
-  const actividades_en = Array.isArray(b.actividades_en) ? b.actividades_en : [];
+  // === Listas para nuevo catálogo (opcional; deben ser arrays JS para text[])
+  const actividades_es_in = Array.isArray(b.actividades_es) ? b.actividades_es : [];
+  const actividades_en_in = Array.isArray(b.actividades_en) ? b.actividades_en : [];
 
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
 
-    // 🔒 lock por código para evitar duplicados simultáneos
+    // Lock por código para evitar duplicados simultáneos
     await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [codigo]);
 
     // ===== Validación GLOBAL (4 catálogos)
@@ -165,60 +146,51 @@ export async function agregarActividadCombo(req, res) {
     let insertedActs   = 0;
 
     if (group_mode === 'existing') {
-      // --- Flujo existente (NO se toca tours_comboact)
+      // --- Agregar combo a un catálogo YA existente (NO tocamos tours_comboact)
       if (!id_rel_body) {
         await client.query('ROLLBACK');
         return res.status(400).json({ error: 'Selecciona un catálogo existente (id_relacionado).' });
       }
       id_relacionado = id_rel_body;
-      // proveedor viene del catálogo seleccionado; el front lo envía bloqueado en el select
-      proveedor = proveedor_body || null;
+      proveedor      = proveedor_body || null;
 
     } else if (group_mode === 'new') {
-      // --- Nuevo catálogo: proveedor y actividades requeridos
+      // --- Crear catálogo NUEVO en UNA FILA: actividad(text[]) y actividad_es(text[])
       if (!proveedor_body) {
         await client.query('ROLLBACK');
         return res.status(400).json({ error: 'Proveedor requerido para crear un nuevo catálogo.' });
       }
-      const pairs = zipActividades(actividades_es, actividades_en);
+
+      // Alinear pares ES/EN y derivar arrays finales
+      const pairs = zipActividades(actividades_es_in, actividades_en_in);
       if (!pairs.length) {
         await client.query('ROLLBACK');
         return res.status(400).json({ error: 'Debes capturar al menos una actividad para el nuevo catálogo.' });
       }
+      const arrES = pairs.map(p => p.es);
+      const arrEN = pairs.map(p => p.en);
 
-      proveedor = proveedor_body;
+      proveedor      = proveedor_body;
       id_relacionado = await nextCatalogGroupId(client);
 
-      // Detectar si columnas son ARRAY o TEXT
-      const actividadIsArray   = await isArrayColumn(client, 'public', 'tours_comboact', 'actividad');
-      const actividadEsIsArray = await isArrayColumn(client, 'public', 'tours_comboact', 'actividad_es');
-
-      // Insertar actividades del nuevo catálogo en tours_comboact
+      // Validar que NO exista ya fila para ese id_relacionado (por PK)
+      // (Con nextCatalogGroupId + PK en id_relacionado esto no debería ocurrir)
+      // Insertar UNA SOLA FILA con los arreglos
       const textActs = `
         INSERT INTO public.tours_comboact
-          (proveedor, actividad, actividad_es, id_relacionado, estatus)
-        VALUES ($1, $2${actividadIsArray ? '::text[]' : '::text'}, $3${actividadEsIsArray ? '::text[]' : '::text'}, $4::int, TRUE)
+          (id_relacionado, proveedor, actividad, actividad_es, estatus)
+        VALUES ($1, $2, $3::text[], $4::text[], TRUE)
       `;
-
-      for (const { es, en } of pairs) {
-        const valEn = en || es || '';
-        const valEs = es || en || '';
-
-        // Si la columna es ARRAY -> enviar arreglo con un elemento; si es TEXT -> string
-        const p2 = actividadIsArray   ? [valEn] : valEn;
-        const p3 = actividadEsIsArray ? [valEs] : valEs;
-
-        await client.query(textActs, [proveedor, p2, p3, id_relacionado]);
-        insertedActs++;
-      }
+      await client.query(textActs, [id_relacionado, proveedor, arrEN, arrES]);
+      insertedActs = arrEN.length;
 
     } else {
-      // --- Ni existing ni new: se permite crear combo “sueltito” (comportamiento previo)
+      // --- “Suelto”: deja pasar id_relacionado/proveedor si llegan; no crea catálogo
       id_relacionado = toNumOrNull(b.id_relacionado);
       proveedor      = proveedor_body || null;
     }
 
-    // ===== INSERT en tours_combo (común a ambos modos)
+    // ===== INSERT del COMBO (común)
     const textCombo = `
       INSERT INTO public.tours_combo
         (codigo, nombre_combo, nombre_combo_es, moneda,
@@ -250,7 +222,7 @@ export async function agregarActividadCombo(req, res) {
       data: {
         ...combo,
         group_mode,
-        actividades_insertadas: insertedActs,
+        actividades_insertadas: insertedActs, // cantidad de items dentro del array
       },
     });
 
@@ -259,10 +231,17 @@ export async function agregarActividadCombo(req, res) {
     console.error('💥 agregarActividadCombo error:', err);
 
     if (err && err.code === '23505') {
+      // Choque de PK (por ejemplo si id_relacionado ya existe en tours_comboact)
       return res.status(409).json({
-        error: 'Error: El código que intentas registrar ya existe, favor de confirmar.',
+        error: 'Error: llave duplicada. Verifica que el id_relacionado del catálogo no exista ya.',
         code: 'duplicate',
-        fields: { codigo: true },
+      });
+    }
+    if (err && err.code === '22P02') {
+      // Malformed array literal → asegurarse de mandar arreglos JS; aquí damos pista clara
+      return res.status(400).json({
+        error: 'Formato de arreglo inválido: envía actividades_es/actividades_en como arrays, no como texto plano.',
+        code: 'bad_array_literal',
       });
     }
     return res.status(500).json({ error: 'Error al crear el combo.' });
@@ -272,3 +251,4 @@ export async function agregarActividadCombo(req, res) {
 }
 
 export default agregarActividadCombo;
+
