@@ -160,7 +160,7 @@ app.get('/api/combos/listar', listarActividadesCombo);
 app.get('/api/catalogos-combo', listarCatalogosCombo);
 app.get('/api/catalogos-combo/:id/items', listarItemsDeCatalogo);
 app.post('/api/combos/agregar-combo', agregarActividadCombo);
-app.put('/api/combos/:id', actualizarActividadCombo);
+app.put('/api/combos/actualizar/:id', actualizarActividadCombo);
 app.patch('/api/combos/:id/estatus', cambiarEstatusActividadCombo);
 
 app.use((req, res) => {
