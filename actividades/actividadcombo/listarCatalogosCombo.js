@@ -20,9 +20,17 @@ export async function listarCatalogosCombo(_req, res) {
         ORDER BY c.id_relacionado, c.updated_at DESC, c.id DESC
       ),
       acts AS (
-        /* conteo de actividades activas por catálogo (tours_comboact) */
-        SELECT tca.id_relacionado,
-               COUNT(*)::int AS total_actividades
+        /* Conteo REAL de actividades por catálogo (elementos del arreglo actividad) */
+        SELECT
+          tca.id_relacionado,
+          SUM(
+            COALESCE(
+              (SELECT COUNT(*)
+                 FROM unnest(COALESCE(tca.actividad, '{}')) v
+                WHERE v IS NOT NULL AND v <> ''),
+              0
+            )
+          )::int AS total_actividades
         FROM public.tours_comboact tca
         WHERE tca.id_relacionado IS NOT NULL
           AND (tca.estatus IS TRUE OR tca.estatus = 't')
@@ -61,8 +69,8 @@ export async function listarCatalogosCombo(_req, res) {
  * Devuelve nombres ES/EN de actividades del catálogo (sólo activas),
  * ordenados por el nombre visible.
  *
- * NOTA: si en tu esquema actividad/actividad_es fueran text[],
- * usa UNNEST; si son text plano, este SELECT ya sirve.
+ * NOTA: actividad y actividad_es son text[] → se hace UNNEST con ORDINALITY
+ * para alinear por posición.
  */
 export async function listarItemsDeCatalogo(req, res) {
   try {
@@ -70,14 +78,27 @@ export async function listarItemsDeCatalogo(req, res) {
     if (!id) return res.json({ ok: true, data: [] });
 
     const sql = `
+      WITH base AS (
+        SELECT
+          tca.id_relacionado,
+          en.eng AS actividad_en,
+          es.esp AS actividad_es
+        FROM public.tours_comboact tca
+        LEFT JOIN LATERAL unnest(COALESCE(tca.actividad,    '{}'::text[]))
+             WITH ORDINALITY AS en(eng, ord) ON TRUE
+        LEFT JOIN LATERAL unnest(COALESCE(tca.actividad_es, '{}'::text[]))
+             WITH ORDINALITY AS es(esp, ord) ON es.ord = en.ord
+        WHERE tca.id_relacionado = $1
+          AND (tca.estatus IS TRUE OR tca.estatus = 't')
+      )
       SELECT
-        NULLIF(TRIM(tca.actividad_es), '') AS actividad_es,
-        NULLIF(TRIM(tca.actividad),    '') AS actividad_en
-      FROM public.tours_comboact tca
-      WHERE tca.id_relacionado = $1
-        AND (tca.estatus IS TRUE OR tca.estatus = 't')
-      ORDER BY COALESCE(NULLIF(TRIM(tca.actividad_es), ''), NULLIF(TRIM(tca.actividad), '')) ASC
+        NULLIF(TRIM(actividad_es), '') AS actividad_es,
+        NULLIF(TRIM(actividad_en), '') AS actividad_en
+      FROM base
+      WHERE COALESCE(NULLIF(TRIM(actividad_es), ''), NULLIF(TRIM(actividad_en), '')) IS NOT NULL
+      ORDER BY COALESCE(NULLIF(TRIM(actividad_es), ''), NULLIF(TRIM(actividad_en), '')) ASC;
     `;
+
     const { rows } = await pool.query(sql, [id]);
 
     const data = rows.map(x => ({

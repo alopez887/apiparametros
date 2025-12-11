@@ -27,7 +27,6 @@ export async function listarActividadesCombo(req, res) {
       `;
     }
 
-    // VERSION para columnas text[]: unnest para volver a escalares y luego filtrar/ordenar
     const sql = `
       SELECT
         c.id,
@@ -53,12 +52,19 @@ export async function listarActividadesCombo(req, res) {
 
       LEFT JOIN LATERAL (
         SELECT
-          /* número de filas (registros) en el catálogo */
+          /* ====== CONTEO REAL DE ELEMENTOS DEL CATÁLOGO ======
+             Cuenta cada elemento no vacío del arreglo 'actividad' de todas
+             las filas del mismo id_relacionado. Antes contabas filas (daba 1). */
           (
             SELECT COUNT(*)::int
-            FROM public.tours_comboact tca2
-            WHERE tca2.id_relacionado = c.id_relacionado
-              AND (tca2.estatus IS TRUE OR tca2.estatus = 't')
+            FROM (
+              SELECT 1
+              FROM public.tours_comboact tca2
+              CROSS JOIN LATERAL UNNEST(COALESCE(tca2.actividad, '{}'::text[])) AS v(elem)
+              WHERE tca2.id_relacionado = c.id_relacionado
+                AND (tca2.estatus IS TRUE OR tca2.estatus = 't')
+                AND v.elem IS NOT NULL AND v.elem <> ''
+            ) z
           ) AS total_catalogo,
 
           /* actividades EN (desdoblando text[]) */
@@ -71,7 +77,7 @@ export async function listarActividadesCombo(req, res) {
                 WHERE tca3.id_relacionado = c.id_relacionado
                   AND (tca3.estatus IS TRUE OR tca3.estatus = 't')
               ) u1
-              WHERE v IS NOT NULL AND v <> ''                -- ← filtra vacíos ya como TEXT
+              WHERE v IS NOT NULL AND v <> ''      -- filtra vacíos ya como TEXT
             ),
             ARRAY[]::text[]
           ) AS actividades_en,
