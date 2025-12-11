@@ -1,4 +1,4 @@
-// actividades/combos/agregarActividadCombo.js
+// actividades/actividadcombo/agregarActividadCombo.js
 import pool from '../../conexion.js';
 
 /* =========================
@@ -71,6 +71,23 @@ function zipActividades(listEs = [], listEn = []) {
     out.push({ es, en });
   }
   return out;
+}
+
+/**
+ * Devuelve true si la columna es de tipo ARRAY en Postgres.
+ * (Consultamos information_schema para decidir si mandar string o [string])
+ */
+async function isArrayColumn(client, schema, table, column){
+  const sql = `
+    SELECT data_type
+      FROM information_schema.columns
+     WHERE table_schema = $1
+       AND table_name   = $2
+       AND column_name  = $3
+     LIMIT 1;
+  `;
+  const { rows } = await client.query(sql, [schema, table, column]);
+  return (rows[0]?.data_type || '').toUpperCase() === 'ARRAY';
 }
 
 /**
@@ -154,7 +171,7 @@ export async function agregarActividadCombo(req, res) {
         return res.status(400).json({ error: 'Selecciona un catálogo existente (id_relacionado).' });
       }
       id_relacionado = id_rel_body;
-      // proveedor viene del catálogo seleccionado; el front nos lo manda bloqueado en el select
+      // proveedor viene del catálogo seleccionado; el front lo envía bloqueado en el select
       proveedor = proveedor_body || null;
 
     } else if (group_mode === 'new') {
@@ -172,20 +189,31 @@ export async function agregarActividadCombo(req, res) {
       proveedor = proveedor_body;
       id_relacionado = await nextCatalogGroupId(client);
 
+      // Detectar si columnas son ARRAY o TEXT
+      const actividadIsArray   = await isArrayColumn(client, 'public', 'tours_comboact', 'actividad');
+      const actividadEsIsArray = await isArrayColumn(client, 'public', 'tours_comboact', 'actividad_es');
+
       // Insertar actividades del nuevo catálogo en tours_comboact
-      // Columnas observadas en tu tabla: id, proveedor, actividad, estatus, created_at, updated_at, actividad_es, id_relacionado
       const textActs = `
         INSERT INTO public.tours_comboact
           (proveedor, actividad, actividad_es, id_relacionado, estatus)
-        VALUES ($1, $2, $3, $4, TRUE)
+        VALUES ($1, $2${actividadIsArray ? '::text[]' : '::text'}, $3${actividadEsIsArray ? '::text[]' : '::text'}, $4::int, TRUE)
       `;
+
       for (const { es, en } of pairs) {
-        await client.query(textActs, [proveedor, en || es, es || en, id_relacionado]);
+        const valEn = en || es || '';
+        const valEs = es || en || '';
+
+        // Si la columna es ARRAY -> enviar arreglo con un elemento; si es TEXT -> string
+        const p2 = actividadIsArray   ? [valEn] : valEn;
+        const p3 = actividadEsIsArray ? [valEs] : valEs;
+
+        await client.query(textActs, [proveedor, p2, p3, id_relacionado]);
         insertedActs++;
       }
 
     } else {
-      // --- Ni existing ni new: permitimos crear combo “sueltito” sin catálogo (comportamiento previo)
+      // --- Ni existing ni new: se permite crear combo “sueltito” (comportamiento previo)
       id_relacionado = toNumOrNull(b.id_relacionado);
       proveedor      = proveedor_body || null;
     }
