@@ -1,15 +1,11 @@
 // actividades/actividadcombo/crearCatalogoCombo.js
 import pool from '../../conexion.js';
 
-function trimOrNull(v){
-  if (v === null || v === undefined) return null;
-  const s = String(v).trim();
-  return s === '' ? null : s;
-}
+const trim = v => String(v ?? '').trim();
 
 function zipActividades(listEs = [], listEn = []) {
-  const a = Array.isArray(listEs) ? listEs.map(s => String(s || '').trim()).filter(Boolean) : [];
-  const b = Array.isArray(listEn) ? listEn.map(s => String(s || '').trim()).filter(Boolean) : [];
+  const a = Array.isArray(listEs) ? listEs.map(x => trim(x)).filter(Boolean) : [];
+  const b = Array.isArray(listEn) ? listEn.map(x => trim(x)).filter(Boolean) : [];
   const L = Math.max(a.length, b.length);
   const out = [];
   for (let i = 0; i < L; i++) {
@@ -21,42 +17,50 @@ function zipActividades(listEs = [], listEn = []) {
   return out;
 }
 
-export async function crearCatalogoCombo(req, res){
+async function nextCatalogGroupId(client) {
+  await client.query(`SELECT pg_advisory_xact_lock(hashtext('tours_combo_group'))`);
+  const { rows } = await client.query(`
+    SELECT COALESCE(MAX(id_relacionado), 0) + 1 AS gid
+      FROM public.tours_comboact
+  `);
+  return Number(rows?.[0]?.gid || 1);
+}
+
+export default async function crearCatalogoCombo(req, res) {
   const b = req.body || {};
 
-  const id_relacionado_in = b.id_relacionado;
-  const proveedor_in      = trimOrNull(b.proveedor);
-  const estatus_in        = (b.estatus === undefined) ? true : !!b.estatus;
+  const proveedor = trim(b.proveedor);
+  const estatus   = (b.estatus === undefined) ? true : !!b.estatus;
 
   const listEN_in = Array.isArray(b.actividad) ? b.actividad : [];
   const listES_in = Array.isArray(b.actividad_es) ? b.actividad_es : [];
 
-  const id_relacionado = Number(id_relacionado_in);
-
-  if (!Number.isFinite(id_relacionado) || !proveedor_in){
-    return res.status(400).json({ ok:false, error:'Faltan campos: id_relacionado y proveedor.' });
-  }
-
   const pairs = zipActividades(listES_in, listEN_in);
-  if (!pairs.length){
-    return res.status(400).json({ ok:false, error:'Debes capturar al menos 1 actividad en ES y EN.' });
+  if (!proveedor || !pairs.length) {
+    return res.status(400).json({ error: 'Proveedor requerido y al menos 1 actividad ES/EN.' });
   }
 
   const arrES = pairs.map(p => p.es);
   const arrEN = pairs.map(p => p.en);
 
   const client = await pool.connect();
-  try{
+  try {
     await client.query('BEGIN');
 
-    // Evitar duplicado del grupo
+    // si llega id_relacionado lo usamos; si no, lo generamos seguro
+    let id_relacionado = Number(b.id_relacionado);
+    if (!Number.isFinite(id_relacionado) || id_relacionado <= 0) {
+      id_relacionado = await nextCatalogGroupId(client);
+    }
+
+    // evita duplicado del grupo
     const exists = await client.query(
       `SELECT 1 FROM public.tours_comboact WHERE id_relacionado = $1 LIMIT 1`,
       [id_relacionado]
     );
-    if (exists.rows.length){
+    if (exists.rows.length) {
       await client.query('ROLLBACK');
-      return res.status(409).json({ ok:false, error:'Ese id_relacionado ya existe.' });
+      return res.status(409).json({ error: 'Ese id_relacionado ya existe.' });
     }
 
     await client.query(`
@@ -64,21 +68,15 @@ export async function crearCatalogoCombo(req, res){
         (id_relacionado, proveedor, actividad, actividad_es, estatus)
       VALUES
         ($1, $2, $3::text[], $4::text[], $5)
-    `, [id_relacionado, proveedor_in, arrEN, arrES, estatus_in]);
+    `, [id_relacionado, proveedor, arrEN, arrES, estatus]);
 
     await client.query('COMMIT');
-    return res.status(201).json({ ok:true });
-  }catch(err){
-    await client.query('ROLLBACK').catch(()=>{});
+    return res.status(201).json({ ok: true, id_relacionado });
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
     console.error('💥 crearCatalogoCombo error:', err);
-
-    if (err?.code === '23505'){
-      return res.status(409).json({ ok:false, error:'Duplicado: ya existe ese catálogo.' });
-    }
-    return res.status(500).json({ ok:false, error:'No se pudo guardar el catálogo.' });
-  }finally{
+    return res.status(500).json({ error: 'No se pudo guardar el catálogo.' });
+  } finally {
     client.release();
   }
 }
-
-export default crearCatalogoCombo;
