@@ -26,7 +26,8 @@ async function nextCatalogGroupId(client) {
   return Number(rows?.[0]?.gid || 1);
 }
 
-export default async function crearCatalogoCombo(req, res) {
+// ✅ NAMED EXPORT (para import { crearCatalogoCombo } ...)
+export async function crearCatalogoCombo(req, res) {
   const b = req.body || {};
 
   const proveedor = trim(b.proveedor);
