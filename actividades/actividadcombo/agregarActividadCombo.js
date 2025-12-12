@@ -74,14 +74,34 @@ function zipActividades(listEs = [], listEn = []) {
 }
 
 /**
- * Genera un nuevo id_relacionado seguro dentro de la transacción.
+ * ✅ Proveedor real del catálogo por id_relacionado (tours_comboact)
+ * - Toma el NO vacío más reciente.
+ */
+async function proveedorDeCatalogo(client, id_relacionado) {
+  const { rows } = await client.query(`
+    SELECT DISTINCT ON (tca.id_relacionado)
+           NULLIF(BTRIM(tca.proveedor), '') AS proveedor
+      FROM public.tours_comboact tca
+     WHERE tca.id_relacionado = $1
+       AND (tca.estatus IS TRUE OR tca.estatus = 't')
+       AND NULLIF(BTRIM(tca.proveedor), '') IS NOT NULL
+     ORDER BY tca.id_relacionado, tca.updated_at DESC, tca.id DESC
+     LIMIT 1;
+  `, [id_relacionado]);
+
+  return rows?.[0]?.proveedor || null;
+}
+
+/**
+ * ✅ Genera un nuevo id_relacionado seguro dentro de la transacción.
+ * IMPORTANTE: el MAX sale del catálogo (tours_comboact), no de tours_combo.
  * Si tienes un SEQUENCE, cámbialo por SELECT nextval('tours_combo_group_seq').
  */
 async function nextCatalogGroupId(client) {
   await client.query(`SELECT pg_advisory_xact_lock(hashtext('tours_combo_group'))`);
   const { rows } = await client.query(`
     SELECT COALESCE(MAX(id_relacionado), 0) + 1 AS gid
-      FROM public.tours_combo
+      FROM public.tours_comboact
   `);
   return Number(rows?.[0]?.gid || 1);
 }
@@ -151,8 +171,26 @@ export async function agregarActividadCombo(req, res) {
         await client.query('ROLLBACK');
         return res.status(400).json({ error: 'Selecciona un catálogo existente (id_relacionado).' });
       }
+
       id_relacionado = id_rel_body;
-      proveedor      = proveedor_body || null;
+
+      // ✅ proveedor real viene del catálogo
+      const provCat = await proveedorDeCatalogo(client, id_relacionado);
+      if (!provCat) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: 'El catálogo seleccionado no existe o no tiene proveedor válido.' });
+      }
+
+      // Si el front mandó proveedor y NO coincide → 409 (opcional pero recomendado)
+      if (proveedor_body && provCat.toLowerCase().trim() !== proveedor_body.toLowerCase().trim()) {
+        await client.query('ROLLBACK');
+        return res.status(409).json({
+          error: `El catálogo ${id_relacionado} pertenece a "${provCat}", no a "${proveedor_body}".`,
+          code: 'catalog_provider_mismatch'
+        });
+      }
+
+      proveedor = provCat;
 
     } else if (group_mode === 'new') {
       // --- Crear catálogo NUEVO en UNA FILA: actividad(text[]) y actividad_es(text[])
@@ -173,9 +211,6 @@ export async function agregarActividadCombo(req, res) {
       proveedor      = proveedor_body;
       id_relacionado = await nextCatalogGroupId(client);
 
-      // Validar que NO exista ya fila para ese id_relacionado (por PK)
-      // (Con nextCatalogGroupId + PK en id_relacionado esto no debería ocurrir)
-      // Insertar UNA SOLA FILA con los arreglos
       const textActs = `
         INSERT INTO public.tours_comboact
           (id_relacionado, proveedor, actividad, actividad_es, estatus)
@@ -222,7 +257,7 @@ export async function agregarActividadCombo(req, res) {
       data: {
         ...combo,
         group_mode,
-        actividades_insertadas: insertedActs, // cantidad de items dentro del array
+        actividades_insertadas: insertedActs,
       },
     });
 
@@ -231,14 +266,12 @@ export async function agregarActividadCombo(req, res) {
     console.error('💥 agregarActividadCombo error:', err);
 
     if (err && err.code === '23505') {
-      // Choque de PK (por ejemplo si id_relacionado ya existe en tours_comboact)
       return res.status(409).json({
         error: 'Error: llave duplicada. Verifica que el id_relacionado del catálogo no exista ya.',
         code: 'duplicate',
       });
     }
     if (err && err.code === '22P02') {
-      // Malformed array literal → asegurarse de mandar arreglos JS; aquí damos pista clara
       return res.status(400).json({
         error: 'Formato de arreglo inválido: envía actividades_es/actividades_en como arrays, no como texto plano.',
         code: 'bad_array_literal',
@@ -251,4 +284,3 @@ export async function agregarActividadCombo(req, res) {
 }
 
 export default agregarActividadCombo;
-
