@@ -15,15 +15,23 @@ import pool from '../../conexion.js';
 export async function listarCatalogosCombo(_req, res) {
   try {
     const sql = `
-      WITH prov AS (
-        /* proveedor NO vacío más reciente por catálogo (desde tours_combo) */
-        SELECT DISTINCT ON (c.id_relacionado)
-               c.id_relacionado,
-               NULLIF(TRIM(c.proveedor),'') AS proveedor
-        FROM public.tours_combo c
-        WHERE c.id_relacionado IS NOT NULL
-          AND NULLIF(TRIM(c.proveedor),'') IS NOT NULL
-        ORDER BY c.id_relacionado, c.updated_at DESC, c.id DESC
+      WITH cats AS (
+        /* ✅ universo de catálogos: SOLO tours_comboact (catálogo vive aquí) */
+        SELECT DISTINCT tca.id_relacionado
+        FROM public.tours_comboact tca
+        WHERE tca.id_relacionado IS NOT NULL
+          AND (tca.estatus IS TRUE OR tca.estatus = 't')
+      ),
+      prov AS (
+        /* ✅ proveedor NO vacío más reciente por catálogo (DESDE tours_comboact) */
+        SELECT DISTINCT ON (tca.id_relacionado)
+               tca.id_relacionado,
+               NULLIF(BTRIM(tca.proveedor), '') AS proveedor
+        FROM public.tours_comboact tca
+        WHERE tca.id_relacionado IS NOT NULL
+          AND (tca.estatus IS TRUE OR tca.estatus = 't')
+          AND NULLIF(BTRIM(tca.proveedor), '') IS NOT NULL
+        ORDER BY tca.id_relacionado, tca.updated_at DESC, tca.id DESC
       ),
       acts AS (
         /* Conteo REAL de actividades por catálogo (elementos del arreglo actividad) */
@@ -32,7 +40,7 @@ export async function listarCatalogosCombo(_req, res) {
           SUM(
             COALESCE(
               (SELECT COUNT(*)
-                 FROM unnest(COALESCE(tca.actividad, '{}')) v
+                 FROM unnest(COALESCE(tca.actividad, '{}'::text[])) v
                 WHERE v IS NOT NULL AND v <> ''),
               0
             )
@@ -42,37 +50,16 @@ export async function listarCatalogosCombo(_req, res) {
           AND (tca.estatus IS TRUE OR tca.estatus = 't')
         GROUP BY tca.id_relacionado
       ),
-      cats AS (
-        /* universo de catálogos detectados en ambas tablas */
-        SELECT DISTINCT id_relacionado
-        FROM public.tours_combo
-        WHERE id_relacionado IS NOT NULL
-        UNION
-        SELECT DISTINCT id_relacionado
-        FROM public.tours_comboact
-        WHERE id_relacionado IS NOT NULL
-      ),
       dates AS (
-        /* Fechas del catálogo tomando ambos orígenes:
-           - created_at: la más antigua entre combo y comboact
-           - updated_at: la más reciente entre combo y comboact
-        */
+        /* ✅ Fechas SOLO del catálogo (tours_comboact) */
         SELECT
-          x.id_relacionado,
-          MIN(x.created_at) AS created_at,
-          MAX(x.updated_at) AS updated_at
-        FROM (
-          SELECT id_relacionado, created_at, updated_at
-          FROM public.tours_combo
-          WHERE id_relacionado IS NOT NULL
-
-          UNION ALL
-
-          SELECT id_relacionado, created_at, updated_at
-          FROM public.tours_comboact
-          WHERE id_relacionado IS NOT NULL
-        ) x
-        GROUP BY x.id_relacionado
+          tca.id_relacionado,
+          MIN(tca.created_at) AS created_at,
+          MAX(tca.updated_at) AS updated_at
+        FROM public.tours_comboact tca
+        WHERE tca.id_relacionado IS NOT NULL
+          AND (tca.estatus IS TRUE OR tca.estatus = 't')
+        GROUP BY tca.id_relacionado
       )
       SELECT
         cats.id_relacionado,
