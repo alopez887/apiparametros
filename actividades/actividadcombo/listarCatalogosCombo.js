@@ -4,7 +4,13 @@ import pool from '../../conexion.js';
 /**
  * GET /api/catalogos-combo
  * Respuesta por fila:
- * { id_relacionado, proveedor, total_actividades }
+ * {
+ *   id_relacionado,
+ *   proveedor,
+ *   total_actividades,
+ *   created_at,
+ *   updated_at
+ * }
  */
 export async function listarCatalogosCombo(_req, res) {
   try {
@@ -45,14 +51,39 @@ export async function listarCatalogosCombo(_req, res) {
         SELECT DISTINCT id_relacionado
         FROM public.tours_comboact
         WHERE id_relacionado IS NOT NULL
+      ),
+      dates AS (
+        /* Fechas del catálogo tomando ambos orígenes:
+           - created_at: la más antigua entre combo y comboact
+           - updated_at: la más reciente entre combo y comboact
+        */
+        SELECT
+          x.id_relacionado,
+          MIN(x.created_at) AS created_at,
+          MAX(x.updated_at) AS updated_at
+        FROM (
+          SELECT id_relacionado, created_at, updated_at
+          FROM public.tours_combo
+          WHERE id_relacionado IS NOT NULL
+
+          UNION ALL
+
+          SELECT id_relacionado, created_at, updated_at
+          FROM public.tours_comboact
+          WHERE id_relacionado IS NOT NULL
+        ) x
+        GROUP BY x.id_relacionado
       )
       SELECT
         cats.id_relacionado,
         COALESCE(prov.proveedor, '') AS proveedor,
-        COALESCE(acts.total_actividades, 0) AS total_actividades
+        COALESCE(acts.total_actividades, 0) AS total_actividades,
+        dates.created_at,
+        dates.updated_at
       FROM cats
-      LEFT JOIN prov USING (id_relacionado)
-      LEFT JOIN acts USING (id_relacionado)
+      LEFT JOIN prov  USING (id_relacionado)
+      LEFT JOIN acts  USING (id_relacionado)
+      LEFT JOIN dates USING (id_relacionado)
       ORDER BY cats.id_relacionado;
     `;
 
@@ -60,7 +91,10 @@ export async function listarCatalogosCombo(_req, res) {
     return res.json({ ok: true, data: rows });
   } catch (e) {
     console.error('❌ /api/catalogos-combo:', e);
-    return res.status(500).json({ ok: false, error: 'No se pudieron listar los catálogos de combos' });
+    return res.status(500).json({
+      ok: false,
+      error: 'No se pudieron listar los catálogos de combos'
+    });
   }
 }
 
