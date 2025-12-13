@@ -8,6 +8,7 @@ import pool from '../../conexion.js';
  *   id_relacionado,
  *   proveedor,
  *   total_actividades,
+ *   estatus,       // ✅ agregado: true/false (estatus más reciente del catálogo)
  *   created_at,
  *   updated_at
  * }
@@ -24,7 +25,7 @@ export async function listarCatalogosCombo(_req, res) {
         WHERE tca.id_relacionado IS NOT NULL
       ),
       prov AS (
-        /* proveedor NO vacío más reciente por catálogo (desde tours_comboact) */
+        /* proveedor NO vacío (más reciente por catálogo) */
         SELECT DISTINCT ON (tca.id_relacionado)
                tca.id_relacionado,
                NULLIF(BTRIM(tca.proveedor), '') AS proveedor
@@ -33,8 +34,17 @@ export async function listarCatalogosCombo(_req, res) {
           AND NULLIF(BTRIM(tca.proveedor), '') IS NOT NULL
         ORDER BY tca.id_relacionado, tca.updated_at DESC, tca.id DESC
       ),
+      st AS (
+        /* ✅ estatus más reciente por catálogo */
+        SELECT DISTINCT ON (tca.id_relacionado)
+               tca.id_relacionado,
+               COALESCE(tca.estatus, true) AS estatus
+        FROM public.tours_comboact tca
+        WHERE tca.id_relacionado IS NOT NULL
+        ORDER BY tca.id_relacionado, tca.updated_at DESC, tca.id DESC
+      ),
       acts AS (
-        /* Conteo REAL de actividades por catálogo (elementos del arreglo actividad) */
+        /* total de actividades (conteo robusto de arrays por fila, sumado por catálogo) */
         SELECT
           tca.id_relacionado,
           SUM(
@@ -50,7 +60,7 @@ export async function listarCatalogosCombo(_req, res) {
         GROUP BY tca.id_relacionado
       ),
       dates AS (
-        /* Fechas del catálogo (tours_comboact) */
+        /* fechas del catálogo */
         SELECT
           tca.id_relacionado,
           MIN(tca.created_at) AS created_at,
@@ -63,10 +73,12 @@ export async function listarCatalogosCombo(_req, res) {
         cats.id_relacionado,
         COALESCE(prov.proveedor, '') AS proveedor,
         COALESCE(acts.total_actividades, 0) AS total_actividades,
+        COALESCE(st.estatus, true) AS estatus,
         dates.created_at,
         dates.updated_at
       FROM cats
       LEFT JOIN prov  USING (id_relacionado)
+      LEFT JOIN st    USING (id_relacionado)
       LEFT JOIN acts  USING (id_relacionado)
       LEFT JOIN dates USING (id_relacionado)
       ORDER BY cats.id_relacionado;
@@ -75,60 +87,10 @@ export async function listarCatalogosCombo(_req, res) {
     const { rows } = await pool.query(sql);
     return res.json({ ok: true, data: rows });
   } catch (e) {
-    console.error('❌ /api/catalogos-combo:', e);
+    console.error('❌ listarCatalogosCombo error:', e);
     return res.status(500).json({
       ok: false,
-      error: 'No se pudieron listar los catálogos de combos'
+      error: 'No se pudieron listar los catálogos'
     });
-  }
-}
-
-/**
- * GET /api/catalogos-combo/:id/items
- * Devuelve nombres ES/EN de actividades del catálogo,
- * ordenados por el nombre visible.
- *
- * ✅ IMPORTANTE: NO se filtra por estatus. Deben verse TODOS los items del catálogo.
- *
- * NOTA: actividad y actividad_es son text[] → se hace UNNEST con ORDINALITY
- * para alinear por posición.
- */
-export async function listarItemsDeCatalogo(req, res) {
-  try {
-    const id = String(req.params.id || req.query.id || '').trim();
-    if (!id) return res.json({ ok: true, data: [] });
-
-    const sql = `
-      WITH base AS (
-        SELECT
-          tca.id_relacionado,
-          en.eng AS actividad_en,
-          es.esp AS actividad_es
-        FROM public.tours_comboact tca
-        LEFT JOIN LATERAL unnest(COALESCE(tca.actividad,    '{}'::text[]))
-             WITH ORDINALITY AS en(eng, ord) ON TRUE
-        LEFT JOIN LATERAL unnest(COALESCE(tca.actividad_es, '{}'::text[]))
-             WITH ORDINALITY AS es(esp, ord) ON es.ord = en.ord
-        WHERE tca.id_relacionado = $1
-      )
-      SELECT
-        NULLIF(TRIM(actividad_es), '') AS actividad_es,
-        NULLIF(TRIM(actividad_en), '') AS actividad_en
-      FROM base
-      WHERE COALESCE(NULLIF(TRIM(actividad_es), ''), NULLIF(TRIM(actividad_en), '')) IS NOT NULL
-      ORDER BY COALESCE(NULLIF(TRIM(actividad_es), ''), NULLIF(TRIM(actividad_en), '')) ASC;
-    `;
-
-    const { rows } = await pool.query(sql, [id]);
-
-    const data = rows.map(x => ({
-      actividad_es: x.actividad_es || null,
-      actividad:    x.actividad_en || null
-    }));
-
-    return res.json({ ok: true, data });
-  } catch (e) {
-    console.error('❌ /api/catalogos-combo/:id/items:', e);
-    return res.status(500).json({ ok: false, error: 'No se pudieron listar las actividades del catálogo' });
   }
 }
