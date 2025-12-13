@@ -23,85 +23,112 @@ export async function listarCatalogosCombo(_req, res) {
         FROM public.tours_comboact tca
         WHERE tca.id_relacionado IS NOT NULL
       ),
-      agg AS (
-        /* agregados por catálogo */
+      prov AS (
+        /* proveedor NO vacío más reciente por catálogo (desde tours_comboact) */
+        SELECT DISTINCT ON (tca.id_relacionado)
+               tca.id_relacionado,
+               NULLIF(BTRIM(tca.proveedor), '') AS proveedor
+        FROM public.tours_comboact tca
+        WHERE tca.id_relacionado IS NOT NULL
+          AND NULLIF(BTRIM(tca.proveedor), '') IS NOT NULL
+        ORDER BY tca.id_relacionado, tca.updated_at DESC, tca.id DESC
+      ),
+      acts AS (
+        /* Conteo REAL de actividades por catálogo (elementos del arreglo actividad) */
         SELECT
           tca.id_relacionado,
-          COUNT(*)::int AS total_actividades,
-          MIN(tca.created_at) AS created_at,
-          MAX(COALESCE(tca.updated_at, tca.created_at)) AS updated_at
+          SUM(
+            COALESCE(
+              (SELECT COUNT(*)
+                 FROM unnest(COALESCE(tca.actividad, '{}'::text[])) v
+                WHERE v IS NOT NULL AND v <> ''),
+              0
+            )
+          )::int AS total_actividades
         FROM public.tours_comboact tca
         WHERE tca.id_relacionado IS NOT NULL
         GROUP BY tca.id_relacionado
       ),
-      prov AS (
-        /* proveedor real (no inventado): toma el más reciente no vacío por catálogo */
-        SELECT DISTINCT ON (tca.id_relacionado)
+      dates AS (
+        /* Fechas del catálogo (tours_comboact) */
+        SELECT
           tca.id_relacionado,
-          NULLIF(BTRIM(tca.proveedor), '') AS proveedor
+          MIN(tca.created_at) AS created_at,
+          MAX(tca.updated_at) AS updated_at
         FROM public.tours_comboact tca
         WHERE tca.id_relacionado IS NOT NULL
-          AND NULLIF(BTRIM(tca.proveedor), '') IS NOT NULL
-        ORDER BY
-          tca.id_relacionado,
-          COALESCE(tca.updated_at, tca.created_at) DESC NULLS LAST,
-          tca.id DESC
+        GROUP BY tca.id_relacionado
       )
       SELECT
-        c.id_relacionado,
-        COALESCE(p.proveedor, '') AS proveedor,
-        COALESCE(a.total_actividades, 0) AS total_actividades,
-        a.created_at,
-        a.updated_at
-      FROM cats c
-      LEFT JOIN agg  a ON a.id_relacionado = c.id_relacionado
-      LEFT JOIN prov p ON p.id_relacionado = c.id_relacionado
-      ORDER BY a.updated_at DESC NULLS LAST, c.id_relacionado DESC;
+        cats.id_relacionado,
+        COALESCE(prov.proveedor, '') AS proveedor,
+        COALESCE(acts.total_actividades, 0) AS total_actividades,
+        dates.created_at,
+        dates.updated_at
+      FROM cats
+      LEFT JOIN prov  USING (id_relacionado)
+      LEFT JOIN acts  USING (id_relacionado)
+      LEFT JOIN dates USING (id_relacionado)
+      ORDER BY cats.id_relacionado;
     `;
 
     const { rows } = await pool.query(sql);
     return res.json({ ok: true, data: rows });
-  } catch (err) {
-    console.error('listarCatalogosCombo error:', err);
-    return res.status(500).json({ ok: false, error: 'Error al listar catálogos combo' });
+  } catch (e) {
+    console.error('❌ /api/catalogos-combo:', e);
+    return res.status(500).json({
+      ok: false,
+      error: 'No se pudieron listar los catálogos de combos'
+    });
   }
 }
 
 /**
- * GET /api/catalogos-combo/items?id_relacionado=XYZ
- * (o id=XYZ)
+ * GET /api/catalogos-combo/:id/items
+ * Devuelve nombres ES/EN de actividades del catálogo,
+ * ordenados por el nombre visible.
  *
- * Devuelve actividades dentro del catálogo.
- * No filtra por estatus (muestra todo lo que exista en DB para ese catálogo).
+ * ✅ IMPORTANTE: NO se filtra por estatus. Deben verse TODOS los items del catálogo.
+ *
+ * NOTA: actividad y actividad_es son text[] → se hace UNNEST con ORDINALITY
+ * para alinear por posición.
  */
 export async function listarItemsDeCatalogo(req, res) {
   try {
-    const idRel = String(
-      req.query.id_relacionado ?? req.query.id ?? req.params?.id_relacionado ?? ''
-    ).trim();
-
-    if (!idRel) {
-      return res.status(400).json({ ok: false, error: 'Falta id_relacionado' });
-    }
+    const id = String(req.params.id || req.query.id || '').trim();
+    if (!id) return res.json({ ok: true, data: [] });
 
     const sql = `
+      WITH base AS (
+        SELECT
+          tca.id_relacionado,
+          en.eng AS actividad_en,
+          es.esp AS actividad_es
+        FROM public.tours_comboact tca
+        LEFT JOIN LATERAL unnest(COALESCE(tca.actividad,    '{}'::text[]))
+             WITH ORDINALITY AS en(eng, ord) ON TRUE
+        LEFT JOIN LATERAL unnest(COALESCE(tca.actividad_es, '{}'::text[]))
+             WITH ORDINALITY AS es(esp, ord) ON es.ord = en.ord
+        WHERE tca.id_relacionado = $1
+      )
       SELECT
-        tca.id,
-        tca.id_relacionado,
-        tca.proveedor,
-        tca.actividad,
-        tca.actividad_es,
-        tca.created_at,
-        tca.updated_at
-      FROM public.tours_comboact tca
-      WHERE tca.id_relacionado = $1
-      ORDER BY COALESCE(tca.updated_at, tca.created_at) DESC NULLS LAST, tca.id DESC;
+        NULLIF(TRIM(actividad_es), '') AS actividad_es,
+        NULLIF(TRIM(actividad_en), '') AS actividad_en
+      FROM base
+      WHERE COALESCE(NULLIF(TRIM(actividad_es), ''), NULLIF(TRIM(actividad_en), '')) IS NOT NULL
+      ORDER BY COALESCE(NULLIF(TRIM(actividad_es), ''), NULLIF(TRIM(actividad_en), '')) ASC;
     `;
 
-    const { rows } = await pool.query(sql, [idRel]);
-    return res.json({ ok: true, data: rows });
-  } catch (err) {
-    console.error('listarItemsDeCatalogo error:', err);
-    return res.status(500).json({ ok: false, error: 'Error al listar items del catálogo' });
+    const { rows } = await pool.query(sql, [id]);
+
+    const data = rows.map(x => ({
+      actividad_es: x.actividad_es || null,
+      actividad:    x.actividad_en || null
+    }));
+
+    return res.json({ ok: true, data });
+  } catch (e) {
+    console.error('❌ /api/catalogos-combo/:id/items:', e);
+    return res.status(500).json({ ok: false, error: 'No se pudieron listar las actividades del catálogo' });
   }
 }
