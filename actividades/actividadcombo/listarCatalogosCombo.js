@@ -11,25 +11,25 @@ import pool from '../../conexion.js';
  *   created_at,
  *   updated_at
  * }
+ *
+ * ✅ IMPORTANTE: NO se filtra por estatus. Deben verse TODOS los catálogos.
  */
 export async function listarCatalogosCombo(_req, res) {
   try {
     const sql = `
       WITH cats AS (
-        /* ✅ universo de catálogos: SOLO tours_comboact (catálogo vive aquí) */
+        /* universo de catálogos: tours_comboact (catálogo vive aquí) */
         SELECT DISTINCT tca.id_relacionado
         FROM public.tours_comboact tca
         WHERE tca.id_relacionado IS NOT NULL
-          AND (tca.estatus IS TRUE OR tca.estatus = 't')
       ),
       prov AS (
-        /* ✅ proveedor NO vacío más reciente por catálogo (DESDE tours_comboact) */
+        /* proveedor NO vacío más reciente por catálogo (desde tours_comboact) */
         SELECT DISTINCT ON (tca.id_relacionado)
                tca.id_relacionado,
                NULLIF(BTRIM(tca.proveedor), '') AS proveedor
         FROM public.tours_comboact tca
         WHERE tca.id_relacionado IS NOT NULL
-          AND (tca.estatus IS TRUE OR tca.estatus = 't')
           AND NULLIF(BTRIM(tca.proveedor), '') IS NOT NULL
         ORDER BY tca.id_relacionado, tca.updated_at DESC, tca.id DESC
       ),
@@ -47,18 +47,16 @@ export async function listarCatalogosCombo(_req, res) {
           )::int AS total_actividades
         FROM public.tours_comboact tca
         WHERE tca.id_relacionado IS NOT NULL
-          AND (tca.estatus IS TRUE OR tca.estatus = 't')
         GROUP BY tca.id_relacionado
       ),
       dates AS (
-        /* ✅ Fechas SOLO del catálogo (tours_comboact) */
+        /* Fechas del catálogo (tours_comboact) */
         SELECT
           tca.id_relacionado,
           MIN(tca.created_at) AS created_at,
           MAX(tca.updated_at) AS updated_at
         FROM public.tours_comboact tca
         WHERE tca.id_relacionado IS NOT NULL
-          AND (tca.estatus IS TRUE OR tca.estatus = 't')
         GROUP BY tca.id_relacionado
       )
       SELECT
@@ -87,8 +85,10 @@ export async function listarCatalogosCombo(_req, res) {
 
 /**
  * GET /api/catalogos-combo/:id/items
- * Devuelve nombres ES/EN de actividades del catálogo (sólo activas),
+ * Devuelve nombres ES/EN de actividades del catálogo,
  * ordenados por el nombre visible.
+ *
+ * ✅ IMPORTANTE: NO se filtra por estatus. Deben verse TODOS los items del catálogo.
  *
  * NOTA: actividad y actividad_es son text[] → se hace UNNEST con ORDINALITY
  * para alinear por posición.
@@ -110,7 +110,6 @@ export async function listarItemsDeCatalogo(req, res) {
         LEFT JOIN LATERAL unnest(COALESCE(tca.actividad_es, '{}'::text[]))
              WITH ORDINALITY AS es(esp, ord) ON es.ord = en.ord
         WHERE tca.id_relacionado = $1
-          AND (tca.estatus IS TRUE OR tca.estatus = 't')
       )
       SELECT
         NULLIF(TRIM(actividad_es), '') AS actividad_es,
