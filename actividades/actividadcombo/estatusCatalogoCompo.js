@@ -20,69 +20,54 @@ async function hasColumn(client, table, column) {
 
 /**
  * PATCH /api/catalogos-combo/:id/estatus
- * Body:
- * - { activo: true|false }   ó { estatus: true|false }
- * Si NO mandas boolean, hace toggle (invierte el actual).
+ * Body opcional:
+ * { activo: true|false }  o { estatus: true|false }
+ *
+ * Si NO mandas nada, hace TOGGLE.
  */
 export async function estatusCatalogoCompo(req, res) {
   const idRel = toId(req.params.id);
   if (idRel == null) return res.status(400).json({ error: 'id_relacionado requerido en URL' });
 
-  const body = req.body || {};
-  const raw = (typeof body.activo === 'boolean') ? body.activo
-           : (typeof body.estatus === 'boolean') ? body.estatus
-           : null;
+  const b = req.body || {};
 
   const client = await pool.connect();
   try {
-    await client.query('BEGIN');
+    const col =
+      (await hasColumn(client, 'tours_comboact', 'estatus')) ? 'estatus' :
+      (await hasColumn(client, 'tours_comboact', 'activo')) ? 'activo' :
+      null;
 
-    const ex = await client.query(
-      'SELECT 1 FROM tours_comboact WHERE id_relacionado = $1 LIMIT 1',
+    if (!col) return res.status(400).json({ error: 'La tabla tours_comboact no tiene columna estatus/activo.' });
+
+    const q = await client.query(
+      `SELECT ${col} AS v
+         FROM public.tours_comboact
+        WHERE id_relacionado = $1
+        LIMIT 1`,
       [idRel]
     );
-    if (!ex.rows.length) {
-      await client.query('ROLLBACK');
-      return res.status(404).json({ error: 'Catálogo no encontrado' });
-    }
+    if (!q.rows.length) return res.status(404).json({ error: 'Catálogo no encontrado' });
 
-    const colEstatus = (await hasColumn(client, 'tours_comboact', 'estatus')) ? 'estatus'
-                    : (await hasColumn(client, 'tours_comboact', 'activo')) ? 'activo'
-                    : null;
+    const current = !!q.rows[0].v;
 
-    if (!colEstatus) {
-      await client.query('ROLLBACK');
-      return res.status(500).json({ error: 'La tabla tours_comboact no tiene columna estatus/activo' });
-    }
+    // si viene valor explícito, lo usamos; si no, toggle
+    let next;
+    if (typeof b.activo === 'boolean') next = b.activo;
+    else if (typeof b.estatus === 'boolean') next = b.estatus;
+    else next = !current;
 
-    const hasUpdatedAt = await hasColumn(client, 'tours_comboact', 'updated_at');
+    await client.query(
+      `UPDATE public.tours_comboact
+          SET ${col} = $2
+        WHERE id_relacionado = $1`,
+      [idRel, next]
+    );
 
-    let nuevo = raw;
-    if (nuevo === null) {
-      // toggle
-      const q = await client.query(
-        `SELECT ${colEstatus} AS v
-           FROM tours_comboact
-          WHERE id_relacionado = $1
-          LIMIT 1`,
-        [idRel]
-      );
-      const actual = q.rows.length ? !!q.rows[0].v : true;
-      nuevo = !actual;
-    }
-
-    const sql = hasUpdatedAt
-      ? `UPDATE tours_comboact SET ${colEstatus} = $2, updated_at = NOW() WHERE id_relacionado = $1`
-      : `UPDATE tours_comboact SET ${colEstatus} = $2 WHERE id_relacionado = $1`;
-
-    await client.query(sql, [idRel, nuevo]);
-
-    await client.query('COMMIT');
-    return res.json({ ok: true, id_relacionado: idRel, [colEstatus]: nuevo });
+    return res.json({ ok: true, id_relacionado: idRel, [col]: next });
   } catch (err) {
-    try { await client.query('ROLLBACK'); } catch (_) {}
     console.error('💥 estatusCatalogoCompo error:', err);
-    return res.status(500).json({ error: 'Error al cambiar estatus del catálogo' });
+    return res.status(500).json({ error: 'No se pudo cambiar el estatus del catálogo' });
   } finally {
     client.release();
   }

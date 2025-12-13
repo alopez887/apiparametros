@@ -167,7 +167,6 @@ app.put('/api/combos/actualizar/:id', actualizarActividadCombo);
 app.patch('/api/combos/:id/estatus', cambiarEstatusActividadCombo);
 app.post('/api/catalogos-combo', crearCatalogoCombo);
 app.put('/api/catalogos-combo/:id', actualizarCatalogoCombo);
-app.patch('/api/catalogos-combo/:id', actualizarCatalogoCombo);
 app.patch('/api/catalogos-combo/:id/estatus', estatusCatalogoCompo);
 
 app.use((req, res) => {
