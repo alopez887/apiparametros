@@ -39,21 +39,33 @@ export async function crearUsuarioPartner(req, res) {
       });
     }
 
-    // 🔹 Inserción
+    // ✅ Inserción guardando también el texto del proveedor desde actividades_proveedores.nombre
+    // Si proveedor_id no existe en catálogo, NO inserta (y regresamos 400).
     const sql = `
-      INSERT INTO actividades_usuarios
-        (nombre, proveedor_id, tipo_usuario, usuario, password, activo, created_at, updated_at)
-      VALUES
-        ($1, $2, $3, $4, $5, TRUE, NOW(), NOW())
-      RETURNING
-        id,
-        nombre,
-        proveedor_id,
-        tipo_usuario,
-        usuario,
-        activo,
-        created_at,
-        updated_at;
+      WITH prov AS (
+        SELECT nombre
+        FROM public.actividades_proveedores
+        WHERE id = $2
+        LIMIT 1
+      ),
+      ins AS (
+        INSERT INTO public.actividades_usuarios
+          (nombre, proveedor_id, proveedor, tipo_usuario, usuario, password, activo, created_at, updated_at)
+        SELECT
+          $1, $2, prov.nombre, $3, $4, $5, TRUE, NOW(), NOW()
+        FROM prov
+        RETURNING
+          id,
+          nombre,
+          proveedor_id,
+          proveedor,
+          tipo_usuario,
+          usuario,
+          activo,
+          created_at,
+          updated_at
+      )
+      SELECT * FROM ins;
     `;
 
     const values = [
@@ -61,10 +73,18 @@ export async function crearUsuarioPartner(req, res) {
       provId,
       tipoTrim,
       usuarioTrim,
-      passwordTrim,   // si quieres luego aquí metes hash
+      passwordTrim,
     ];
 
     const { rows } = await pool.query(sql, values);
+
+    // Si no insertó, es porque no existe ese proveedor_id en el catálogo
+    if (!rows || rows.length === 0) {
+      return res.status(400).json({
+        ok: false,
+        message: 'proveedor_id no existe en actividades_proveedores.',
+      });
+    }
 
     return res.status(201).json({
       ok: true,
@@ -72,9 +92,6 @@ export async function crearUsuarioPartner(req, res) {
     });
   } catch (err) {
     console.error('❌ crearUsuarioPartner:', err);
-
-    // Si hay constraint UNIQUE en "usuario", aquí normalmente llegará el error
-    // y podemos mandar un mensaje más claro si quieres luego.
     return res.status(500).json({
       ok: false,
       message: 'Error interno al crear el usuario.',

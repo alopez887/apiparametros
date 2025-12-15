@@ -35,74 +35,127 @@ export async function actualizarUsuarioPartner(req, res) {
       });
     }
 
-    // OJO: ajusta el nombre real de tu tabla aquí
+    const nombreTrim  = String(nombre).trim();
+    const usuarioTrim = String(usuario).trim();
+    const tipoTrim    = String(tipo_usuario).trim();
+    const passTrim    = password != null ? String(password).trim() : '';
+
+    if (!nombreTrim || !usuarioTrim || !tipoTrim) {
+      return res.status(400).json({
+        ok: false,
+        message: 'Campos nombre, usuario y tipo_usuario no pueden ir vacíos.',
+      });
+    }
+
     let sql;
     let values;
 
-    if (password && String(password).trim() !== '') {
+    // ✅ Con password
+    if (passTrim !== '') {
       sql = `
-        UPDATE actividades_usuarios
-        SET
-          nombre       = $1,
-          proveedor_id = $2,
-          tipo_usuario = $3,
-          usuario      = $4,
-          password     = $5,
-          updated_at   = NOW()
-        WHERE id = $6
-        RETURNING
-          id,
-          nombre,
-          proveedor_id,
-          tipo_usuario,
-          usuario,
-          activo,
-          created_at,
-          updated_at;
+        WITH prov AS (
+          SELECT nombre
+          FROM public.actividades_proveedores
+          WHERE id = $2
+          LIMIT 1
+        ),
+        upd AS (
+          UPDATE public.actividades_usuarios u
+          SET
+            nombre       = $1,
+            proveedor_id = $2,
+            proveedor    = (SELECT prov.nombre FROM prov),
+            tipo_usuario = $3,
+            usuario      = $4,
+            password     = $5,
+            updated_at   = NOW()
+          WHERE u.id = $6
+            AND EXISTS (SELECT 1 FROM prov) -- si no existe el proveedor, NO actualiza
+          RETURNING
+            id,
+            nombre,
+            proveedor_id,
+            proveedor,
+            tipo_usuario,
+            usuario,
+            activo,
+            created_at,
+            updated_at
+        )
+        SELECT * FROM upd;
       `;
+
       values = [
-        nombre.trim(),
+        nombreTrim,
         provId,
-        tipo_usuario.trim(),
-        usuario.trim(),
-        String(password).trim(),
+        tipoTrim,
+        usuarioTrim,
+        passTrim,
         id,
       ];
     } else {
+      // ✅ Sin password
       sql = `
-        UPDATE actividades_usuarios
-        SET
-          nombre       = $1,
-          proveedor_id = $2,
-          tipo_usuario = $3,
-          usuario      = $4,
-          updated_at   = NOW()
-        WHERE id = $5
-        RETURNING
-          id,
-          nombre,
-          proveedor_id,
-          tipo_usuario,
-          usuario,
-          activo,
-          created_at,
-          updated_at;
+        WITH prov AS (
+          SELECT nombre
+          FROM public.actividades_proveedores
+          WHERE id = $2
+          LIMIT 1
+        ),
+        upd AS (
+          UPDATE public.actividades_usuarios u
+          SET
+            nombre       = $1,
+            proveedor_id = $2,
+            proveedor    = (SELECT prov.nombre FROM prov),
+            tipo_usuario = $3,
+            usuario      = $4,
+            updated_at   = NOW()
+          WHERE u.id = $5
+            AND EXISTS (SELECT 1 FROM prov) -- si no existe el proveedor, NO actualiza
+          RETURNING
+            id,
+            nombre,
+            proveedor_id,
+            proveedor,
+            tipo_usuario,
+            usuario,
+            activo,
+            created_at,
+            updated_at
+        )
+        SELECT * FROM upd;
       `;
+
       values = [
-        nombre.trim(),
+        nombreTrim,
         provId,
-        tipo_usuario.trim(),
-        usuario.trim(),
+        tipoTrim,
+        usuarioTrim,
         id,
       ];
     }
 
     const { rows } = await pool.query(sql, values);
 
+    // Si no regresó filas: puede ser usuario no existe O proveedor_id no existe
     if (!rows.length) {
-      return res.status(404).json({
+      // distinguimos ambas cosas para que sea claro
+      const checkUser = await pool.query(
+        `SELECT 1 FROM public.actividades_usuarios WHERE id = $1 LIMIT 1`,
+        [id]
+      );
+
+      if (!checkUser.rows.length) {
+        return res.status(404).json({
+          ok: false,
+          message: 'Usuario no encontrado.',
+        });
+      }
+
+      return res.status(400).json({
         ok: false,
-        message: 'Usuario no encontrado.',
+        message: 'proveedor_id no existe en actividades_proveedores.',
       });
     }
 
