@@ -11,39 +11,32 @@ export async function actualizarUsuarioPartner(req, res) {
     });
   }
 
-  try {
-    const {
-      nombre,
-      proveedor_id,
-      tipo_usuario,
-      usuario,
-      password,
-    } = req.body || {};
+  // ✅ definimos trims afuera para poder usarlos también en catch
+  const body = req.body || {};
+  const nombreRaw = body.nombre;
+  const proveedorIdRaw = body.proveedor_id;
+  const tipoRaw = body.tipo_usuario;
+  const usuarioRaw = body.usuario;
+  const passwordRaw = body.password;
 
-    if (!nombre || !proveedor_id || !tipo_usuario || !usuario) {
+  const nombreTrim  = nombreRaw != null ? String(nombreRaw).trim() : '';
+  const usuarioTrim = usuarioRaw != null ? String(usuarioRaw).trim() : '';
+  const tipoTrim    = tipoRaw != null ? String(tipoRaw).trim() : '';
+  const passTrim    = passwordRaw != null ? String(passwordRaw).trim() : '';
+
+  try {
+    if (!nombreTrim || !proveedorIdRaw || !tipoTrim || !usuarioTrim) {
       return res.status(400).json({
         ok: false,
         message: 'Faltan campos obligatorios (nombre, proveedor_id, tipo_usuario, usuario).',
       });
     }
 
-    const provId = Number(proveedor_id);
+    const provId = Number(proveedorIdRaw);
     if (!Number.isFinite(provId) || provId <= 0) {
       return res.status(400).json({
         ok: false,
         message: 'proveedor_id inválido.',
-      });
-    }
-
-    const nombreTrim  = String(nombre).trim();
-    const usuarioTrim = String(usuario).trim();
-    const tipoTrim    = String(tipo_usuario).trim();
-    const passTrim    = password != null ? String(password).trim() : '';
-
-    if (!nombreTrim || !usuarioTrim || !tipoTrim) {
-      return res.status(400).json({
-        ok: false,
-        message: 'Campos nombre, usuario y tipo_usuario no pueden ir vacíos.',
       });
     }
 
@@ -85,14 +78,7 @@ export async function actualizarUsuarioPartner(req, res) {
         SELECT * FROM upd;
       `;
 
-      values = [
-        nombreTrim,
-        provId,
-        tipoTrim,
-        usuarioTrim,
-        passTrim,
-        id,
-      ];
+      values = [nombreTrim, provId, tipoTrim, usuarioTrim, passTrim, id];
     } else {
       // ✅ Sin password
       sql = `
@@ -127,13 +113,7 @@ export async function actualizarUsuarioPartner(req, res) {
         SELECT * FROM upd;
       `;
 
-      values = [
-        nombreTrim,
-        provId,
-        tipoTrim,
-        usuarioTrim,
-        id,
-      ];
+      values = [nombreTrim, provId, tipoTrim, usuarioTrim, id];
     }
 
     const { rows } = await pool.query(sql, values);
@@ -168,7 +148,7 @@ export async function actualizarUsuarioPartner(req, res) {
     if (err && err.code === '23505') {
       return res.status(409).json({
         ok: false,
-        message: 'El usuario ya existe, favor de verificar.',
+        message: `El usuario <strong>${usuarioTrim}</strong> ya existe, favor de verificar.`,
       });
     }
 
