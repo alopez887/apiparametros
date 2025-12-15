@@ -70,7 +70,7 @@ export async function actualizarUsuarioPartner(req, res) {
             password     = $5,
             updated_at   = NOW()
           WHERE u.id = $6
-            AND EXISTS (SELECT 1 FROM prov) -- si no existe el proveedor, NO actualiza
+            AND EXISTS (SELECT 1 FROM prov)
           RETURNING
             id,
             nombre,
@@ -112,7 +112,7 @@ export async function actualizarUsuarioPartner(req, res) {
             usuario      = $4,
             updated_at   = NOW()
           WHERE u.id = $5
-            AND EXISTS (SELECT 1 FROM prov) -- si no existe el proveedor, NO actualiza
+            AND EXISTS (SELECT 1 FROM prov)
           RETURNING
             id,
             nombre,
@@ -162,17 +162,17 @@ export async function actualizarUsuarioPartner(req, res) {
       ok: true,
       row: rows[0],
     });
-  } catch (err) {
-    console.error('❌ actualizarUsuarioPartner:', err);
 
-    // ✅ usuario duplicado (UNIQUE usuario)
-    if (err && err.code === '23505' && err.constraint === 'actividades_usuarios_usuario_key') {
+  } catch (err) {
+    // ✅ Usuario duplicado (UNIQUE usuario)
+    if (err && err.code === '23505') {
       return res.status(409).json({
         ok: false,
         message: 'El usuario ya existe, favor de verificar.',
       });
     }
 
+    console.error('❌ actualizarUsuarioPartner:', err);
     return res.status(500).json({
       ok: false,
       message: 'Error interno al actualizar el usuario.',

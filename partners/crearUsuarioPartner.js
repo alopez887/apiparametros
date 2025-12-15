@@ -40,7 +40,7 @@ export async function crearUsuarioPartner(req, res) {
     }
 
     // ✅ Inserción guardando también el texto del proveedor desde actividades_proveedores.nombre
-    // Si proveedor_id no existe en catálogo, NO inserta (y regresamos 400).
+    // Si proveedor_id no existe en catálogo, NO inserta.
     const sql = `
       WITH prov AS (
         SELECT nombre
@@ -90,17 +90,17 @@ export async function crearUsuarioPartner(req, res) {
       ok: true,
       row: rows[0],
     });
-  } catch (err) {
-    console.error('❌ crearUsuarioPartner:', err);
 
-    // ✅ usuario duplicado (UNIQUE usuario)
-    if (err && err.code === '23505' && err.constraint === 'actividades_usuarios_usuario_key') {
+  } catch (err) {
+    // ✅ Usuario duplicado (UNIQUE usuario)
+    if (err && err.code === '23505') {
       return res.status(409).json({
         ok: false,
         message: 'El usuario ya existe, favor de verificar.',
       });
     }
 
+    console.error('❌ crearUsuarioPartner:', err);
     return res.status(500).json({
       ok: false,
       message: 'Error interno al crear el usuario.',
