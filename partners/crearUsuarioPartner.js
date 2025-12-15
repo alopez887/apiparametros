@@ -92,6 +92,15 @@ export async function crearUsuarioPartner(req, res) {
     });
   } catch (err) {
     console.error('❌ crearUsuarioPartner:', err);
+
+    // ✅ usuario duplicado (UNIQUE usuario)
+    if (err && err.code === '23505' && err.constraint === 'actividades_usuarios_usuario_key') {
+      return res.status(409).json({
+        ok: false,
+        message: 'El usuario ya existe, favor de verificar.',
+      });
+    }
+
     return res.status(500).json({
       ok: false,
       message: 'Error interno al crear el usuario.',

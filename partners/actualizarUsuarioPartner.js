@@ -140,7 +140,6 @@ export async function actualizarUsuarioPartner(req, res) {
 
     // Si no regresó filas: puede ser usuario no existe O proveedor_id no existe
     if (!rows.length) {
-      // distinguimos ambas cosas para que sea claro
       const checkUser = await pool.query(
         `SELECT 1 FROM public.actividades_usuarios WHERE id = $1 LIMIT 1`,
         [id]
@@ -165,6 +164,15 @@ export async function actualizarUsuarioPartner(req, res) {
     });
   } catch (err) {
     console.error('❌ actualizarUsuarioPartner:', err);
+
+    // ✅ usuario duplicado (UNIQUE usuario)
+    if (err && err.code === '23505' && err.constraint === 'actividades_usuarios_usuario_key') {
+      return res.status(409).json({
+        ok: false,
+        message: 'El usuario ya existe, favor de verificar.',
+      });
+    }
+
     return res.status(500).json({
       ok: false,
       message: 'Error interno al actualizar el usuario.',
