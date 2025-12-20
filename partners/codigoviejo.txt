@@ -1,0 +1,1291 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <title>Panel Actividades – Administración</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono&display=swap" rel="stylesheet">
+  <style>
+    @font-face{font-family:'Sofia Pro';src:url('https://alopez887.github.io/fuentes/SofiaProRegular.otf') format('opentype');font-display:swap}
+    @font-face{font-family:'Sofia Pro Medium';src:url('https://alopez887.github.io/fuentes/SofiaProMedium.otf') format('opentype');font-display:swap}
+
+    :root{
+      --azul:#1d3b60;--azulClaro:#28518f;--bg:#f4f8fc;--card:#ffffff;--muted:#6b859f;
+      --radius:12px;--shadow:0 8px 24px rgba(0,0,0,.08);--gap:18px;
+      --headerH:74px;
+      --accent:#b9d3ff;
+    }
+
+    *{box-sizing:border-box}
+    html,body{height:100%;scroll-behavior:smooth;}
+    body{margin:0;padding:22px;background:var(--bg);color:#0d2740;font-family:'Sofia Pro',system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,'Helvetica Neue',Arial,sans-serif}
+
+    .welcome-bar{display:flex !important;justify-content:space-between;align-items:center;background:#1d3b60;color:#fff;padding:10px 14px;border-radius:8px;margin-bottom:18px;font-size:15px}
+    .welcome-bar button{background:#f04e4e;border:none;color:#fff;padding:6px 14px;border-radius:6px;cursor:pointer;font-size:14px}
+    .welcome-bar button:hover{background:#d23e3e}
+
+    .wrap{max-width:1100px;margin:0 auto;padding:0 0 60px}
+    .title{display:flex;align-items:center;gap:12px;margin-bottom:18px}
+    .title h1{margin:0;font-size:22px;font-family:'Sofia Pro Medium','Sofia Pro',sans-serif;color:#000;letter-spacing:.2px} /* texto negro */
+    .subtitle{color:var(--muted);font-size:13px;margin:-6px 0 14px 44px}
+
+    .filters{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);padding:16px;display:grid;grid-template-columns:repeat(12,1fr);gap:12px;align-items:end;margin-bottom:16px}
+    .field{display:flex;flex-direction:column;gap:6px}
+    .field label{font-size:12px;color:#000;letter-spacing:.3px} /* texto negro */
+    .field input{height:38px;border:1px solid #d8e2ef;border-radius:10px;padding:0 12px;background:#fff;outline:none;font-family:'Sofia Pro',sans-serif;font-size:14px;color:#0d2740}
+    .field input[type="date"]{padding:0 10px}
+    /* placeholders atenuados y sin transformar */
+    .field input::placeholder{color:var(--muted);opacity:.8;text-transform:none}
+
+    .actions{display:flex;gap:10px;justify-content:flex-end}
+    .btn{height:38px;border:0;border-radius:10px;padding:0 14px;cursor:pointer;font-family:'Sofia Pro Medium','Sofia Pro',sans-serif;font-size:14px}
+    .btn.primary{background:var(--azulClaro);color:#fff}
+    .btn.ghost{background:#e9f0f8;color:#0d2740}
+    .note{grid-column:1/-1;font-size:12px;color:#muted;margin-top:2px}
+
+    .result-count{margin:8px 2px 0;color:var(--muted);font-size:13px}
+    .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:var(--gap)}
+    @media (max-width:980px){.grid{grid-template-columns:repeat(2,1fr)}}
+    @media (max-width:680px){.grid{grid-template-columns:1fr}}
+
+    .card{
+      background:var(--card);
+      border-radius:var(--radius);
+      box-shadow:var(--shadow);
+      padding:14px;
+      display:flex;flex-direction:column;gap:10px;cursor:pointer;transition:transform .08s ease,border-color .2s;
+      border:1px solid #e7eef6;
+      border-left:6px solid var(--accent);
+    }
+    .card:hover{transform:translateY(-2px)}
+    .card .row{display:flex;justify-content:space-between;gap:10px;align-items:center}
+    .badge{background:#edf4ff;color:#28518f;border-radius:999px;padding:6px 10px;font-size:12px;border:1px solid #d7e4ff}
+    .k{color:var(--muted);font-size:12px}
+    .v{color:#0d2740;font-size:14px;font-family:'Sofia Pro Medium','Sofia Pro',sans-serif}
+    .muted{color:var(--muted)} .total{font-family:'Sofia Pro Medium','Sofia Pro',sans-serif}
+    .empty{text-align:center;padding:36px;background:#fff;border-radius:var(--radius);box-shadow:var(--shadow);border:1px solid #e7eef6;color:#muted;font-size:14px}
+
+    /* Modal */
+    .overlay{
+      position:fixed; inset:0; background:rgba(13,39,64,.32);
+      display:none; align-items:flex-start; justify-content:center;
+      padding:calc(var(--headerH) + 20px) 20px 20px; z-index:50;
+      animation: appear .14s ease-out;
+    }
+    @keyframes appear{from{opacity:0; transform:translateY(-6px);}to{opacity:1; transform:none;}}
+    .drawer{width:min(920px,100%);max-height:90vh;overflow:auto;background:#fff;border-radius:16px 16px 12px 12px;box-shadow:0 14px 36px rgba(0,0,0,.2);padding:16px}
+    .drawer .head{display:flex !important;flex-wrap:nowrap;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px}
+    .drawer h2{margin:0;font-size:18px;color:#000;font-family:'Sofia Pro Medium','Sofia Pro',sans-serif;flex:1 1 auto;min-width:0} /* texto negro */
+    .close{border:0;background:#eff5fb;border-radius:10px;height:36px;padding:0 12px;color:#0d2740;cursor:pointer;white-space:nowrap}
+
+    /* Summary */
+    .summary{background:#f1f7ff;border:1px solid #dbe9ff;color:#1a2f4d;border-radius:12px;margin:0 0 12px;padding:0;font-family:'Sofia Pro',sans-serif}
+    .summary-grid{display:grid;grid-template-columns:1fr 300px;gap:12px;align-items:stretch;padding:12px;min-height:170px}
+    @media (max-width:760px){ .summary-grid{grid-template-columns:1fr} }
+    .summary-pre{white-space:pre-wrap;font-family:'IBM Plex Mono',monospace;font-size:15px;line-height:1.45;margin:0}
+    .summary-img-wrap{border:1px solid #e7eef6;border-radius:10px;overflow:hidden;background:#eef3fb}
+    .summary-img{width:100%;height:100%;object-fit:cover;display:block}
+    .summary.no-img .summary-img-wrap{display:none}
+    .summary.has-img .summary-img-wrap{display:block}
+
+    /* Editor */
+    .editor{background:#fff;border:1px solid #e7eef6;border-radius:12px;padding:0 12px 12px;margin-top:0;display:grid;grid-template-columns:repeat(12,1fr);gap:12px}
+    .editor .field{grid-column:span 4}
+    @media (max-width:760px){.editor .field{grid-column:span 12}}
+    .editor .bar{grid-column:1/-1;display:flex;justify-content:flex-end;gap:10px;margin-top:4px}
+
+    /* Chips */
+    .chip{border-radius:999px;padding:4px 10px;font-size:12px;border:1px solid transparent}
+    .chip.reservado{background:#eaf2ff;border-color:#cfe0ff;color:#1f5bd3}
+    .chip.checkin {background:#ffe9e9;border-color:#f4b9b9;color:#b33434}
+
+    .btn-mini{height:30px;padding:0 10px;border-radius:8px;border:0;background:#eef3fb;color:#1d3b60;cursor:pointer;font-family:'Sofia Pro Medium','Sofia Pro',sans-serif}
+    .footer-card{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:4px}
+
+    .alert{padding:10px 12px;border-radius:8px;font-size:13px;line-height:1.2;margin-top:6px}
+    .warnbox{background:#fff8e6;border:1px solid #f2d49a;color:#6a4a00}
+
+    .toast{position:fixed;left:50%;top:calc(var(--headerH) + 10px);transform:translateX(-50%);background:#1d3b60;color:#fff;padding:10px 14px;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.18);font-size:14px;z-index:60;display:none}
+    .toast.error{background:#b33434}
+
+    /* === Paginador bonito === */
+    .pager{display:flex;align-items:center;justify-content:center;gap:8px;margin:12px 0 2px;flex-wrap:wrap}
+    .pager .btn-page{appearance:none;border:1px solid #d8e2ef;background:#fff;color:#0d2740;height:34px;min-width:36px;padding:0 12px;border-radius:10px;font-family:'Sofia Pro Medium','Sofia Pro',sans-serif;font-size:14px;line-height:1;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,.04);transition:transform .12s ease, background .12s ease, border-color .12s ease, box-shadow .12s ease}
+    .pager .btn-page:hover{background:#eef3fb;border-color:#cfe0ff;transform:translateY(-1px)}
+    .pager .btn-page.active{background:#28518f;color:#fff;border-color:#28518f;box-shadow:0 6px 16px rgba(40,81,143,.25)}
+    .pager .btn-page[disabled]{opacity:.45;cursor:not-allowed;transform:none}
+    .pager .btn-page:focus-visible{outline:3px solid #b9d3ff;outline-offset:1px}
+    .pager .ellipsis{color:#6b859f;padding:0 4px;user-select:none}
+    @media (max-width:480px){.pager{gap:6px}.pager .btn-page{height:32px;min-width:32px;padding:0 10px;font-size:13px}}
+	
+	
+	.card{
+  background:#fff !important;
+  border:1px solid #e7edf6 !important;
+  border-radius:14px !important;
+  box-shadow:0 10px 24px rgba(13,39,64,.07) !important;
+  padding:16px !important;       /* mantiene densidad similar; no cambia el ancho */
+  transform:none !important;     /* sin saltos exagerados */
+}
+
+/* Hover sutil (misma estética) */
+.card:hover{
+  box-shadow:0 14px 30px rgba(13,39,64,.10) !important;
+  transform:translateY(-2px);
+  border-color:#e1eaf5 !important;
+}
+
+/* Encabezado limpio (FOLIO + badge) */
+.card .row:first-child{
+  background:#fff !important;
+  padding:8px 6px 10px !important;
+  margin:-4px 0 6px !important;
+  border-radius:10px;
+}
+.k{
+  color:#6b7f98 !important;    /* gris azulado del container */
+  font-size:12px !important;
+  letter-spacing:.35px !important;
+  text-transform:uppercase !important;
+}
+.v{
+  color:#0d2740 !important;
+  font-size:16px !important;
+  line-height:1.25 !important;
+  font-family:'Sofia Pro Medium','Sofia Pro',sans-serif !important;
+}
+
+/* Badge igual que el de la caja (pastilla clara) */
+.badge{
+  background:#eef4ff !important;
+  border:1px solid #d6e5ff !important;
+  color:#28518f !important;
+  font-weight:600 !important;
+  box-shadow:none !important;
+}
+
+/* Línea “Tours:” con divisor superior como en el contenedor */
+.card .muted{
+  position:relative;
+  color:#6b7f98 !important;
+  font-size:13px !important;
+  padding:12px 10px 6px !important;
+  background:transparent !important;
+  border:none !important;
+  border-radius:0 !important;
+}
+.card .muted::before{
+  content:"";
+  position:absolute; left:0; right:0; top:0;
+  height:1px; background:#e7edf6;    /* divisor horizontal */
+}
+
+/* Footer: botón estilo “Continue” (sin cambiar tamaño del botón mini) */
+.footer-card{ margin-top:10px !important; }
+.btn-mini{
+  height:34px !important;
+  padding:0 14px !important;
+  border-radius:10px !important;
+  border:1px solid #2b63e8 !important;
+  background:#2b63e8 !important;   /* azul principal del contenedor */
+  color:#fff !important;
+  font-weight:700 !important;
+  box-shadow:0 8px 18px rgba(43,99,232,.22) !important;
+  transition:filter .12s ease, transform .12s ease, box-shadow .12s ease;
+}
+.btn-mini:hover{
+  transform:translateY(-1px);
+  filter:saturate(1.05);
+  box-shadow:0 12px 26px rgba(43,99,232,.26) !important;
+}
+
+/* Chips de estado con look limpio */
+.chip.reservado{
+  background:#eaf2ff !important;
+  border-color:#cfe0ff !important;
+  color:#0d47a1 !important;
+  font-weight:700 !important;
+}
+.chip.checkin{
+  background:#ffe9ed !important;
+  border-color:#ffc7cf !important;
+  color:#b3123c !important;
+  font-weight:700 !important;
+}
+
+/* Accesibilidad de foco (sutil, como el contenedor) */
+.card:focus-within{
+  outline:3px solid #cfe0ff !important;
+  outline-offset:2px !important;
+  box-shadow:0 0 0 4px rgba(47,90,150,.12) !important;
+}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="welcome-bar" id="welcomeBar">
+      <span id="welcomeMsg">Welcome</span>
+      <button id="logoutBtn">Cerrar sesión</button>
+    </div>
+
+    <div class="title">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="#28518f" aria-hidden="true"><path d="M4 4h16v4H4zM4 10h16v10H4zM6 12v6h12v-6z"/></svg>
+      <h1>Panel Actividades – Administración</h1>
+    </div>
+    <div class="subtitle">Consulta por <strong>folio</strong>, <strong>nombre</strong> o <strong>fecha de compra</strong>.</div>
+
+    <div class="filters">
+      <div class="field" style="grid-column: span 3;">
+        <label for="fFolio">Folio</label>
+        <input id="fFolio" type="text" placeholder="Ej. ACT-001234">
+      </div>
+      <div class="field" style="grid-column: span 4;">
+        <label for="fNombre">Nombre del cliente</label>
+        <input id="fNombre" type="text" placeholder="Ej. Juan Pérez">
+      </div>
+      <div class="field" style="grid-column: span 2;">
+        <label for="fcFechaI">Fecha de compra (inicio)</label>
+        <input id="fcFechaI" type="date">
+      </div>
+      <div class="field" style="grid-column: span 2;">
+        <label for="fcFechaF">Fecha de compra (fin)</label>
+        <input id="fcFechaF" type="date">
+      </div>
+      <div class="actions" style="grid-column: span 1;">
+        <button id="btnBuscar" class="btn primary">Buscar</button>
+        <button id="btnLimpiar" class="btn ghost" title="Limpiar">Limpiar</button>
+      </div>
+      <div class="note">* Con <em>folio</em> se espera coincidencia exacta. Con <em>nombre</em> o <em>fechas</em> se listan todos los resultados.</div>
+    </div>
+
+    <div id="resumen" class="result-count"></div>
+    <div id="grid" class="grid"></div>
+    <div id="paginador" class="pager"></div>
+    <div id="vacio" class="empty" style="display:none">Sin resultados.</div>
+  </div>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <!-- Modal Detalle -->
+  <div id="overlay" class="overlay" role="dialog" aria-modal="true" aria-labelledby="tituloDetalle">
+    <div class="drawer">
+      <div class="head">
+        <h2 id="tituloDetalle">Detalle de la reservación</h2>
+        <button class="close" id="btnCerrar">Cerrar</button>
+      </div>
+
+      <div id="summaryBox" class="summary no-img">
+        <div class="summary-grid">
+          <pre id="bloqueResumen" class="summary-pre"></pre>
+          <div class="summary-img-wrap">
+            <img id="imgTour" class="summary-img" alt="Imagen del tour" referrerpolicy="no-referrer" loading="eager"/>
+          </div>
+        </div>
+      </div>
+
+      <!-- ⚠ Advertencia cuando ya hay Check-In -->
+      <div id="alertCheckIn" class="alert warnbox" style="display:none;">
+        ⚠ Esta actividad ya cuenta con Check-In registrado. No es posible volver a asignar folio de reservación ni modificar la fecha u hora.
+      </div>
+
+      <div class="editor" id="editorBox">
+        <div class="field">
+          <label for="folio_reservacion">Folio de Reservación</label>
+          <input
+            id="folio_reservacion"
+            type="text"
+            placeholder="Ingresa el folio de reservacion"
+            style="text-transform:uppercase"
+          >
+        </div>
+        <div class="field">
+          <label for="fecha_reservacion">Fecha de Reservación</label>
+          <input id="fecha_reservacion" type="date">
+        </div>
+        <div class="field">
+          <label for="hora_reservacion">Hora de Reservación</label>
+          <input id="hora_reservacion" type="time">
+        </div>
+
+        <div class="bar">
+          <button id="btnGuardar" class="btn primary">Guardar</button>
+          <button id="btnCancelar" class="btn ghost">Cancelar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const DEBUG = true;
+    const TAG = '%c[ACTIVIDADES]';
+    const T1 = 'background:#28518f;color:#fff;padding:2px 6px;border-radius:4px;';
+    const log = (...a)=>{ if(DEBUG) console.log(TAG, T1, ...a); };
+    const group = (title)=> DEBUG && console.groupCollapsed(TAG, T1, title);
+    const end   = ()=> DEBUG && console.groupEnd();
+
+    let PARENT_ORIGIN='*';
+    try { PARENT_ORIGIN = new URL(document.referrer).origin; } catch(_){}
+    const postToParent = (msg) => { try { window.parent && window.parent.postMessage(msg, PARENT_ORIGIN); } catch(_){ } };
+    const ORIGIN_OK = (o) => {
+      try {
+        if (PARENT_ORIGIN === '*' || o === PARENT_ORIGIN) return true;
+        const h = new URL(o).hostname;
+        return /\.wixsite\.com$|\.parastorage\.com$/i.test(h);
+      } catch(_) { return false; }
+    };
+
+    const SEARCH_BASE="https://apitours-production.up.railway.app";
+    const UPDATE_BASE="https://apitours-production.up.railway.app";
+    const SEARCH_PATH="/api/consultar-compra";
+    const UPDATE_PATH="/api/actualizar-folio-proveedor";
+    const ONLY_TYPE="Actividades";
+
+    const state={items:[],selected:null,user:{nombre:""},provider:"",page:1,pageSize:9};
+
+    // ==== I18N ====
+    const I18N = {
+      es: {
+        welcome: 'Bienvenido',
+        welcomeNamed: 'Bienvenido, {name}',
+        logout: 'Cerrar sesión',
+        title: 'Panel Actividades – Administración',
+        subtitle: 'Consulta por folio, nombre o fecha de compra.',
+        folioLabel: 'Folio',
+        folioPlaceholder: 'Ej. ACT-001234',
+        nombreLabel: 'Nombre del cliente',
+        nombrePlaceholder: 'Ej. Juan Pérez',
+        fechaCompraInicio: 'Fecha de compra (inicio)',
+        fechaCompraFin: 'Fecha de compra (fin)',
+        buscar: 'Buscar',
+        buscarLoading: 'Buscando…',
+        limpiar: 'Limpiar',
+        note: '* Con folio se espera coincidencia exacta. Con nombre o fechas se listan todos los resultados.',
+        empty: 'Sin resultados.',
+        sinCriterios: 'Ingresa folio, nombre o rango de fechas.',
+        rangoInvalido: 'Rango de compra inválido.',
+        sinProveedor: 'Sin proveedor en la sesión. Recuperándolo…',
+        errorRed: 'Error de red',
+        errorConsulta: status => `Error ${status} consultando`,
+        resultCount: (total, page, tp) => `${total} resultado${total===1?'':'s'} — página ${page} de ${tp}`,
+        detailTitle: folio => `Detalle de la reservación – ${folio || '—'}`,
+        modalClose: 'Cerrar',
+        alertCheckIn: '⚠ Esta actividad ya cuenta con Check-In registrado. No es posible volver a asignar folio de reservación ni modificar la fecha u hora.',
+        folioResLabel: 'Folio de Reservación',
+        folioResPlaceholder: 'Ingresa el folio de reservacion',
+        fechaResLabel: 'Fecha de Reservación',
+        horaResLabel: 'Hora de Reservación',
+        guardar: 'Guardar',
+        cancelar: 'Cancelar',
+        faltanCampos: lista => 'Falta capturar: ' + lista.join(', ') + '.',
+        noGuardar: 'No se pudo guardar. Intenta de nuevo.',
+        guardadoOk: '¡Guardado con éxito!',
+        guardadoSinDetalle: 'Cambios enviados (sin detalle del servidor).',
+        errorRedGuardar: 'Error de red al guardar.',
+        pagAnterior: '‹ Anterior',
+        pagSiguiente: 'Siguiente ›',
+        logoutClosing: 'Cerrando…',
+        // Summary
+        summaryCompraTitle: 'Información de Compra',
+        summaryReservaTitle: 'Información de Reservación',
+        summaryFolio: 'Folio',
+        summaryCliente: 'Cliente',
+        summaryActivity: 'Actividad',
+        summaryPaquete: 'Paquete',
+        summaryActividades: 'Actividades',
+        summaryCapacidad: 'Capacidad',
+        summaryFechaCompra: 'Fecha de Compra',
+        summaryDuracion: 'Duración',
+        summaryCantAdulto: 'Cantidad Adulto',
+        summaryCantNino: 'Cantidad Niño',
+        summaryCantPaquetes: 'Cantidad de paquetes',
+        summaryEdadAdulto: 'Edad Adulto',
+        summaryEdadNino: 'Edad Niño',
+        summaryNota: 'Nota',
+        summaryUsuarioAdmin: 'Usuario Administración',
+        summaryFolioReservacion: 'Folio de reservación',
+        summaryFechaReservacion: 'Fecha de reservación',
+        summaryHoraReservacion: 'Hora de reservación',
+        summaryUsuarioOperador: 'Usuario Operador',
+        summaryFechaAsistencia: 'Fecha Asistencia',
+        summaryEstatusActividad: 'Estatus Actividad',
+        cardBadge: 'Actividades',
+        cardCliente: 'Cliente',
+        cardFechaCompra: 'Fecha de Compra',
+        cardTours: 'Tours:'
+      },
+      en: {
+        welcome: 'Welcome',
+        welcomeNamed: 'Welcome, {name}',
+        logout: 'Log out',
+        title: 'Activities Panel – Admin',
+        subtitle: 'Search by booking ID, client name or purchase date.',
+        folioLabel: 'Booking ID',
+        folioPlaceholder: 'Ex. ACT-001234',
+        nombreLabel: 'Client name',
+        nombrePlaceholder: 'Ex. John Smith',
+        fechaCompraInicio: 'Purchase date (from)',
+        fechaCompraFin: 'Purchase date (to)',
+        buscar: 'Search',
+        buscarLoading: 'Searching…',
+        limpiar: 'Clear',
+        note: '* With booking ID it expects an exact match. With name or dates it lists all results.',
+        empty: 'No results.',
+        sinCriterios: 'Enter booking ID, name or date range.',
+        rangoInvalido: 'Invalid purchase range.',
+        sinProveedor: 'No provider in session. Fetching…',
+        errorRed: 'Network error',
+        errorConsulta: status => `Error ${status} while querying`,
+        resultCount: (total, page, tp) => `${total} result${total===1?'':'s'} — page ${page} of ${tp}`,
+        detailTitle: folio => `Reservation details – ${folio || '—'}`,
+        modalClose: 'Close',
+        alertCheckIn: '⚠ This activity already has Check-In. You cannot change the reservation folio or date/time.',
+        folioResLabel: 'Reservation folio',
+        folioResPlaceholder: 'Enter reservation folio',
+        fechaResLabel: 'Reservation date',
+        horaResLabel: 'Reservation time',
+        guardar: 'Save',
+        cancelar: 'Cancel',
+        faltanCampos: lista => 'Missing fields: ' + lista.join(', ') + '.',
+        noGuardar: 'Could not save. Please try again.',
+        guardadoOk: 'Saved successfully!',
+        guardadoSinDetalle: 'Changes sent (no server detail).',
+        errorRedGuardar: 'Network error while saving.',
+        pagAnterior: '‹ Previous',
+        pagSiguiente: 'Next ›',
+        logoutClosing: 'Logging out…',
+        // Summary
+        summaryCompraTitle: 'Purchase Information',
+        summaryReservaTitle: 'Reservation Information',
+        summaryFolio: 'Booking ID',
+        summaryCliente: 'Client',
+        summaryActivity: 'Activity',
+        summaryPaquete: 'Package',
+        summaryActividades: 'Activities',
+        summaryCapacidad: 'Capacity',
+        summaryFechaCompra: 'Purchase date',
+        summaryDuracion: 'Duration',
+        summaryCantAdulto: 'Adult quantity',
+        summaryCantNino: 'Child quantity',
+        summaryCantPaquetes: 'Number of packages',
+        summaryEdadAdulto: 'Adult age',
+        summaryEdadNino: 'Child age',
+        summaryNota: 'Note',
+        summaryUsuarioAdmin: 'Admin user',
+        summaryFolioReservacion: 'Reservation folio',
+        summaryFechaReservacion: 'Reservation date',
+        summaryHoraReservacion: 'Reservation time',
+        summaryUsuarioOperador: 'Operator user',
+        summaryFechaAsistencia: 'Attendance date',
+        summaryEstatusActividad: 'Activity status',
+        cardBadge: 'Activities',
+        cardCliente: 'Client',
+        cardFechaCompra: 'Purchase date',
+        cardTours: 'Tours:'
+      }
+    };
+
+    let currentLang = (document.documentElement.lang || 'es').toLowerCase().startsWith('en') ? 'en' : 'es';
+
+    function applyLang() {
+      const d = I18N[currentLang] || I18N.es;
+
+      const welcomeSpan = document.getElementById('welcomeMsg');
+      if (welcomeSpan) {
+        if (state.user.nombre) {
+          welcomeSpan.textContent = d.welcomeNamed.replace('{name}', state.user.nombre);
+        } else {
+          welcomeSpan.textContent = d.welcome;
+        }
+      }
+
+      const logoutBtn = document.getElementById('logoutBtn');
+      if (logoutBtn) logoutBtn.textContent = d.logout;
+
+      const titleEl = document.querySelector('.title h1');
+      if (titleEl) titleEl.textContent = d.title;
+
+      const subtitleEl = document.querySelector('.subtitle');
+      if (subtitleEl) subtitleEl.textContent = d.subtitle;
+
+      const lblFolio = document.querySelector('label[for="fFolio"]');
+      if (lblFolio) lblFolio.textContent = d.folioLabel;
+      const inpFolio = document.getElementById('fFolio');
+      if (inpFolio) inpFolio.placeholder = d.folioPlaceholder;
+
+      const lblNom = document.querySelector('label[for="fNombre"]');
+      if (lblNom) lblNom.textContent = d.nombreLabel;
+      const inpNom = document.getElementById('fNombre');
+      if (inpNom) inpNom.placeholder = d.nombrePlaceholder;
+
+      const lblFI = document.querySelector('label[for="fcFechaI"]');
+      if (lblFI) lblFI.textContent = d.fechaCompraInicio;
+      const lblFF = document.querySelector('label[for="fcFechaF"]');
+      if (lblFF) lblFF.textContent = d.fechaCompraFin;
+
+      const btnBuscar = document.getElementById('btnBuscar');
+      if (btnBuscar) btnBuscar.textContent = d.buscar;
+      const btnLimpiar = document.getElementById('btnLimpiar');
+      if (btnLimpiar) btnLimpiar.textContent = d.limpiar;
+
+      const note = document.querySelector('.note');
+      if (note) note.textContent = d.note;
+
+      const vacio = document.getElementById('vacio');
+      if (vacio) vacio.textContent = d.empty;
+
+      const tituloDetalle = document.getElementById('tituloDetalle');
+      if (tituloDetalle) {
+        const folio = (state.selected && (state.selected.folio || '')) || '—';
+        tituloDetalle.textContent = d.detailTitle(folio);
+      }
+
+      const btnCerrar = document.getElementById('btnCerrar');
+      if (btnCerrar) btnCerrar.textContent = d.modalClose;
+
+      const alertCheckIn = document.getElementById('alertCheckIn');
+      if (alertCheckIn) alertCheckIn.textContent = d.alertCheckIn;
+
+      const lblFolioRes = document.querySelector('label[for="folio_reservacion"]');
+      if (lblFolioRes) lblFolioRes.textContent = d.folioResLabel;
+      const inpFolioRes = document.getElementById('folio_reservacion');
+      if (inpFolioRes) inpFolioRes.placeholder = d.folioResPlaceholder;
+
+      const lblFechaRes = document.querySelector('label[for="fecha_reservacion"]');
+      if (lblFechaRes) lblFechaRes.textContent = d.fechaResLabel;
+
+      const lblHoraRes = document.querySelector('label[for="hora_reservacion"]');
+      if (lblHoraRes) lblHoraRes.textContent = d.horaResLabel;
+
+      const btnGuardar = document.getElementById('btnGuardar');
+      if (btnGuardar) btnGuardar.textContent = d.guardar;
+      const btnCancelar = document.getElementById('btnCancelar');
+      if (btnCancelar) btnCancelar.textContent = d.cancelar;
+
+      // Re-render resumen / lista / paginador si hay datos
+      if (state.items && state.items.length) {
+        renderList(state.items);
+      } else {
+        const resumen = document.getElementById('resumen');
+        if (resumen && resumen.textContent) {
+          // Si había algún mensaje genérico, lo alineamos al idioma
+          if (/Sin resultados|No results|Error|Ingresa folio|Enter booking/i.test(resumen.textContent)) {
+            resumen.textContent = d.empty;
+          }
+        }
+      }
+    }
+
+    function setLang(lang) {
+      const v = String(lang || '').toLowerCase();
+      const norm = v.startsWith('en') ? 'en' : 'es';
+      if (norm === currentLang) return;
+      currentLang = norm;
+      try { document.documentElement.lang = currentLang; } catch(_){}
+      applyLang();
+    }
+
+    const $=s=>document.querySelector(s);
+    const safe=v=>(v===0?'0':(v??'—'));
+    const norm=s=>String(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+    const slugify=s=>String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'');
+
+    // === FECHAS
+    function parseDate(v){
+      if (!v) return null;
+      if (typeof v === 'string') {
+        const s = v.trim();
+        const m = s.match(/^(\d{4})-(\d{2})-(\d{2})(?:[ T].*)?$/);
+        if (m) return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+      }
+      const d = new Date(v);
+      return isNaN(d) ? null : d;
+    }
+    function toDateInput(v){
+      if (!v) return '';
+      if (typeof v === 'string') {
+        const m = v.trim().match(/^(\d{4})-(\d{2})-(\d{2})/);
+        if (m) return `${m[1]}-${m[2]}-${m[3]}`;
+      }
+      const d = v instanceof Date ? v : parseDate(v);
+      if (!d) return '';
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${y}-${m}-${day}`;
+    }
+    function nowLocalStamp(){
+      const d=new Date(); const pad=n=>String(n).padStart(2,'0');
+      return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+    }
+
+    function scrollPageTop(){
+      try {(document.scrollingElement || document.documentElement).scrollTo({ top: 0, behavior: 'smooth' });}catch(_){}
+      try { postToParent({ type:'iframe:scrollToTop', scope:'actividades', behavior:'smooth' }); }catch(_){}
+    }
+    function toast(msg, type = 'ok') {
+      const el = document.getElementById('toast');
+      if (!el) { alert(msg); return; }
+      el.textContent = String(msg || '');
+      el.className = 'toast' + (type === 'error' ? ' error' : '');
+      el.style.display = 'block';
+      void el.offsetHeight;
+      scrollPageTop();
+      try { el.setAttribute('tabindex','-1'); } catch(_){}
+      try { el.scrollIntoView({ block:'start', behavior:'smooth' }); } catch(_){}
+      try { el.focus({ preventScroll:true }); } catch(_){}
+      clearTimeout(el._hid);
+      el._hid = setTimeout(() => { el.style.display = 'none'; }, 2600);
+    }
+
+    function compraDateOf(it){ return parseDate(it.fecha); }
+    function sanitizeUrl(u){
+      try{
+        let s = String(u||'').trim();
+        if(!s) return '';
+        if(s.startsWith('//')) s = location.protocol + s;
+        if(location.protocol === 'https:' && s.startsWith('http://')) s = s.replace(/^http:\/\//i, 'https://');
+        return s;
+      }catch(_){ return ''; }
+    }
+    function pickImageUrl(r){
+      const cands = [r.imagen_url, r.imagen, r.imagenCorreo, r.imagen_correo, r.imagen_card, r.foto, r.image, r.picture, r.imagen_tour];
+      const url = cands.find(u => typeof u === 'string' && /^https?:\/\//i.test((u||'').trim())) || '';
+      return sanitizeUrl(url);
+    }
+
+    // ====== RESUMEN CON CAPACIDAD / DURACIÓN / PAQUETES / NOTAS ======
+    function buildSummaryHTML(r){
+      const dict = I18N[currentLang] || I18N.es;
+      const esc = s => String(s ?? '—')
+        .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+        .replace(/>/g,'&gt;').replace(/"/g,'&quot;')
+        .replace(/'/g,'&#39;');
+
+      const L = [];
+      const push = (k,v)=> L.push(`${esc(k)}: ${esc(v)}`);
+
+      const fechaCompra = toDateInput(compraDateOf(r));
+      const fechaRes    = toDateInput(r.fecha_reservacion);
+      const hh = (s)=>{ const str=String(s||''); const m=str.match(/^(\d{2}):(\d{2})/); return m?`${m[1]}:${m[2]}`:str; };
+
+      const est = r.estatus_actividad || '';
+      const adminAsigno =
+        r.usuario_administracion || r.usuario_proveedor || r.usuario_admin || r.usuario || '';
+
+      // Capacidad/Duración desde múltiples nombres
+      let capacidad =
+        (r.capacidad ?? r.pax ?? r.capacity ?? r.capacidad_pax ?? r.max_pax ?? r.pax_max ?? r.personas ?? r.pasajeros ?? '').toString().trim();
+
+      let dur =
+        (r.Duracion ?? r.duracion ?? r.tiempo ?? r.time ?? r.duration ?? '').toString().trim();
+
+      const etiqueta = String(r.etiqueta || '').trim();
+      if (etiqueta) {
+        const parts = etiqueta.split('+').map(s => s.trim()).filter(Boolean);
+        if (!capacidad && parts[0]) capacidad = parts[0];
+        if (!dur && parts[1])      dur = parts[1];
+      }
+
+      const paquete   = (r.paquete || r.combo_nombre || '').toString().trim();
+      const actividades = (r.combo_actividades || '').toString().trim();
+
+      L.push('<strong>' + esc(dict.summaryCompraTitle) + '</strong>');
+      push(dict.summaryFolio, r.folio ?? '—');
+      push(dict.summaryCliente, r.nombre_cliente ?? '—');
+      push(dict.summaryActivity, r.nombre_tour ?? '—');
+
+      if (paquete)     push(dict.summaryPaquete, paquete);
+      if (actividades) push(dict.summaryActividades, actividades);
+
+      if (capacidad)   push(dict.summaryCapacidad, capacidad);
+      push(dict.summaryFechaCompra, fechaCompra || '—');
+      if (dur)         push(dict.summaryDuracion, dur);
+
+      const ca = Number(r.cantidad_adulto) || 0;
+      const cn = Number(r.cantidad_nino)   || 0;
+      if (ca > 0) push(dict.summaryCantAdulto, ca);
+      if (cn > 0) push(dict.summaryCantNino, cn);
+
+      const qty = Number(r.cantidad_paquetes || r.cantidad_paquete || r.paquetes || r.num_paquetes || r.cantidad || 0);
+      if (qty > 0) push(dict.summaryCantPaquetes, qty);
+
+      if (ca > 0 && r.edad_adulto) push(dict.summaryEdadAdulto, r.edad_adulto);
+      if (cn > 0 && r.edad_nino)   push(dict.summaryEdadNino, r.edad_nino);
+
+      const notaCliente = (r.notas ?? r.nota ?? '').toString().trim();
+      if (notaCliente) push(dict.summaryNota, notaCliente);
+
+      L.push('');
+      L.push('<strong>' + esc(dict.summaryReservaTitle) + '</strong>');
+      if (isReservedOrCheckIn(est) && adminAsigno) push(dict.summaryUsuarioAdmin, adminAsigno);
+      push(dict.summaryFolioReservacion, r.folio_reservacion ?? '—');
+      push(dict.summaryFechaReservacion, fechaRes || '—');
+      push(dict.summaryHoraReservacion, hh(r.hora_reservacion));
+
+      const uop = r.usuario_operador || r.usuario_operacion || '';
+      const fas = r.fecha_asitencia || r.fecha_asistencia || '';
+      if (isCheckInStatus(est)) {
+        if (uop) push(dict.summaryUsuarioOperador, uop);
+        if (fas) push(dict.summaryFechaAsistencia, fas);
+      }
+      push(dict.summaryEstatusActividad, est || '—');
+      return L.join('\n');
+    }
+
+    function computeHeaderOffset(){
+      try{
+        const bar = document.getElementById('welcomeBar');
+        const ttl = document.querySelector('.title');
+        let h = 0;
+        if (bar) h += bar.getBoundingClientRect().height;
+        if (ttl) h += ttl.getBoundingClientRect().height;
+        h += 6;
+        document.documentElement.style.setProperty('--headerH', `${Math.round(h)}px`);
+      }catch(_){}
+    }
+    function scrollModalIntoView(){
+      try { (document.scrollingElement || document.documentElement).scrollTo({ top: 0, behavior: 'smooth' }); } catch(_){}
+      const drawer = document.querySelector('.drawer');
+      if (drawer) {
+        try { drawer.setAttribute('tabindex','-1'); } catch(_){}
+        try { drawer.scrollTop = 0; } catch(_){}
+        try { drawer.focus({ preventScroll: false }); } catch(_){}
+        try { drawer.scrollIntoView({ block:'start', behavior:'smooth' }); } catch(_){}
+      }
+      postToParent({ type: 'iframe:scrollToTop', scope: 'actividades', behavior: 'smooth' });
+    }
+
+    function setUserName(nombre){
+      state.user.nombre=(nombre||"").trim();
+      applyLang();
+      $('#welcomeBar').style.display='flex';
+      postToParent({ type:'name:ack', scope:'actividades', nombre: state.user.nombre });
+    }
+
+    function isCheckInStatus(v){
+      const s = String(v||'').toLowerCase().replace(/[\s_-]/g,'');
+      return s === 'checkin';
+    }
+    function isReservedOrCheckIn(v){
+      const s = String(v||'').toLowerCase().replace(/[\s_-]/g,'');
+      return s === 'reservado' || s === 'checkin';
+    }
+
+    function hide(el){ if(!el) return; el.style.display = 'none'; }
+    function show(el){ if(!el) return; el.style.display = (el.id === 'overlay' || el.classList.contains('overlay')) ? 'flex' : ''; }
+
+    function openDetalle(rec){
+      state.selected=rec;
+      const dict = I18N[currentLang] || I18N.es;
+      document.getElementById('tituloDetalle').textContent = dict.detailTitle(safe(rec.folio));
+
+      const urlImg = pickImageUrl(rec);
+      const box = document.getElementById('summaryBox');
+      const img = document.getElementById('imgTour');
+      if (box && img){
+        const ok = !!urlImg;
+        box.classList.toggle('has-img', ok);
+        box.classList.toggle('no-img', !ok);
+        if (ok){ img.src = urlImg; img.style.display='block'; } else { img.removeAttribute('src'); img.style.display='none'; }
+      }
+
+      document.getElementById('bloqueResumen').innerHTML = buildSummaryHTML(rec);
+
+      const $folio = document.getElementById('folio_reservacion');
+      const $fecha = document.getElementById('fecha_reservacion');
+      const $hora  = document.getElementById('hora_reservacion');
+
+      $folio.value = rec.folio_reservacion || '';
+      $fecha.value = toDateInput(rec.fecha_reservacion);
+      $hora.value  = rec.hora_reservacion  || '';
+
+      if (!$folio._upperBound) {
+        $folio.addEventListener('input', (e)=>{ e.target.value = e.target.value.toUpperCase(); });
+        $folio.addEventListener('change', (e)=>{ e.target.value = e.target.value.trim().toUpperCase(); });
+        $folio._upperBound = true;
+      }
+
+      const isCI = isCheckInStatus(rec.estatus_actividad);
+      const editor = document.getElementById('editorBox');
+      const alertCI = document.getElementById('alertCheckIn');
+      if (isCI) {
+        if (editor) editor.style.display='none';
+        if (alertCI) alertCI.style.display='block';
+      } else {
+        if (editor) editor.style.display='grid';
+        if (alertCI) alertCI.style.display='none';
+      }
+
+      computeHeaderOffset();
+      show(document.getElementById('overlay'));
+      scrollModalIntoView();
+      setTimeout(scrollModalIntoView, 60);
+    }
+    function closeDetalle(){ state.selected=null; hide(document.getElementById('overlay')); }
+
+    function reservadoFlag(it){
+      return !!(it.folio_reservacion || it.fecha_reservacion || it.hora_reservacion || it.estatus_actividad);
+    }
+
+    function ensureEditUI(card, rec){
+      let foot = card.querySelector('.footer-card');
+      if(!foot){
+        foot = document.createElement('div');
+        foot.className='footer-card';
+        foot.innerHTML = `
+          <span class="chip" style="display:none"></span>
+          <button type="button" class="btn-mini btn-edit" style="display:none">Editar</button>
+        `;
+        card.appendChild(foot);
+      }
+      const chip = foot.querySelector('.chip');
+      const btnEdit = foot.querySelector('.btn-edit');
+      const showChip = reservadoFlag(rec);
+
+      chip.style.display = showChip ? '' : 'none';
+      if (showChip) {
+        if (isCheckInStatus(rec.estatus_actividad)) {
+          chip.textContent = 'Check-In';
+          chip.className = 'chip checkin';
+          btnEdit.style.display = 'none';
+          card.style.borderLeftColor = '#f4b9b9';
+        } else {
+          chip.textContent = 'Reservado';
+          chip.className = 'chip reservado';
+          btnEdit.style.display = '';
+          card.style.borderLeftColor = 'var(--accent)';
+        }
+      } else {
+        btnEdit.style.display = '';
+        chip.className = 'chip';
+        card.style.borderLeftColor = 'var(--accent)';
+      }
+
+      btnEdit.onclick = (ev)=>{ ev.stopPropagation(); openDetalle(rec); };
+    }
+
+    function totalPages(){ return Math.max(1, Math.ceil((state.items?.length || 0) / state.pageSize)); }
+    function setPage(p){
+      const tp = totalPages();
+      if (p < 1 || p > tp) return;
+      state.page = p;
+      renderList(state.items);
+      renderPaginator();
+      try { (document.scrollingElement || document.documentElement).scrollTo({ top: 0, behavior: 'smooth' }); } catch(_){}
+    }
+    function renderPaginator(){
+      const pag = document.getElementById('paginador'); if(!pag) return;
+      const tp = totalPages();
+      if (!state.items.length || tp <= 1){ pag.style.display='none'; pag.innerHTML=''; return; }
+      pag.style.display='flex';
+
+      const dict = I18N[currentLang] || I18N.es;
+      const cur = state.page;
+      const maxBtns = 7;
+      let start = Math.max(1, cur - Math.floor(maxBtns/2));
+      let end   = Math.min(tp, start + maxBtns - 1);
+      if (end - start + 1 < maxBtns) start = Math.max(1, end - maxBtns + 1);
+
+      const parts = [];
+      parts.push(`<button class="btn-page" data-page="${cur-1}" ${cur===1?'disabled':''}>${dict.pagAnterior}</button>`);
+      if (start > 1){
+        parts.push(`<button class="btn-page" data-page="1">1</button>`);
+        if (start > 2) parts.push(`<span class="ellipsis">…</span>`);
+      }
+      for (let i=start;i<=end;i++){
+        parts.push(`<button class="btn-page ${i===cur?'active':''}" data-page="${i}">${i}</button>`);
+      }
+      if (end < tp){
+        if (end < tp-1) parts.push(`<span class="ellipsis">…</span>`);
+        parts.push(`<button class="btn-page" data-page="${tp}">${tp}</button>`);
+      }
+      parts.push(`<button class="btn-page" data-page="${cur+1}" ${cur===tp?'disabled':''}>${dict.pagSiguiente}</button>`);
+      pag.innerHTML = parts.join('');
+
+      if (!pag._bound){
+        pag.addEventListener('click',(ev)=>{
+          const btn = ev.target.closest('button[data-page]');
+          if(!btn) return;
+          const p = parseInt(btn.dataset.page,10);
+          if(!isNaN(p)) setPage(p);
+        });
+        pag._bound = true;
+      }
+    }
+
+    function renderList(list){
+      const grid=document.getElementById('grid'); grid.innerHTML='';
+      const resumen=document.getElementById('resumen');
+      const pag=document.getElementById('paginador');
+      const dict = I18N[currentLang] || I18N.es;
+
+      if (!list || !list.length){
+        resumen.textContent=dict.empty;
+        show(document.getElementById('vacio'));
+        if (pag){ pag.style.display='none'; pag.innerHTML=''; }
+        return;
+      }
+      hide(document.getElementById('vacio'));
+
+      const total = list.length;
+      const tp = totalPages();
+      const startIdx = (state.page - 1) * state.pageSize;
+      const endIdx = Math.min(startIdx + state.pageSize, total);
+      const pageItems = list.slice(startIdx, endIdx);
+
+      resumen.textContent = dict.resultCount(total, state.page, tp);
+
+      const frag=document.createDocumentFragment();
+      for (const item of pageItems){
+        const card=document.createElement('div');
+        card.className='card';
+        card.dataset.folio = safe(item.folio);
+
+        const fechaCompra = toDateInput(compraDateOf(item));
+        card.innerHTML=`
+          <div class="row">
+            <div>
+              <div class="k">${dict.summaryFolio}</div>
+              <div class="v">${safe(item.folio)}</div>
+            </div>
+            <div class="badge">${dict.cardBadge}</div>
+          </div>
+          <div class="row">
+            <div>
+              <div class="k">${dict.cardCliente}</div>
+              <div class="v">${safe(item.nombre_cliente)}</div>
+            </div>
+            <div style="text-align:right">
+              <div class="k">${dict.cardFechaCompra}</div>
+              <div class="v">${fechaCompra}</div>
+            </div>
+          </div>
+          <div class="row">
+            <div class="muted" title="${safe(item.nombre_tour)}">
+              <span class="k">${dict.cardTours}</span> ${safe(item.nombre_tour)}
+            </div>
+          </div>`;
+        ensureEditUI(card, item);
+        card.addEventListener('click',()=>openDetalle(item));
+        frag.appendChild(card);
+      }
+      grid.appendChild(frag);
+
+      renderPaginator();
+    }
+
+    async function buscar(){
+      const dict = I18N[currentLang] || I18N.es;
+      const btn = document.getElementById('btnBuscar'); if (btn) { btn.disabled = true; btn.textContent = dict.buscarLoading; }
+      hide(document.getElementById('vacio')); document.getElementById('resumen').textContent = '';
+      const pag=document.getElementById('paginador'); if(pag){ pag.style.display='none'; pag.innerHTML=''; }
+      state.page = 1;
+
+      const folio   = document.getElementById('fFolio').value.trim();
+      const nombre  = document.getElementById('fNombre').value.trim();
+      const fIVal   = document.getElementById('fcFechaI').value;
+      const fFVal   = document.getElementById('fcFechaF').value;
+      const compraI = parseDate(fIVal);
+      const compraF = parseDate(fFVal);
+      const compraFEnd = compraF ? new Date(compraF.getTime() + 24*60*60*1000 - 1) : null;
+
+      if (!folio && !nombre && !fIVal && !fFVal){
+        document.getElementById('resumen').textContent = dict.sinCriterios;
+        show(document.getElementById('vacio'));
+        if (btn) { btn.disabled=false; btn.textContent=dict.buscar; }
+        return;
+      }
+      if (compraI && compraF && compraI > compraF) {
+        document.getElementById('resumen').textContent = dict.rangoInvalido;
+        show(document.getElementById('vacio')); if (btn) { btn.disabled=false; btn.textContent=dict.buscar; }
+        return;
+      }
+
+      const provider = slugify(state.provider);
+      if (!provider) {
+        document.getElementById('resumen').textContent = dict.sinProveedor;
+        show(document.getElementById('vacio'));
+        postToParent({ type:'requestSession', scope:'actividades' });
+        if (btn) { btn.disabled=false; btn.textContent=dict.buscar; }
+        return;
+      }
+
+      const body={
+        tipo_servicio: ONLY_TYPE,
+        folio,
+        nombre_cliente: nombre,
+        fecha_compra_inicio: fIVal,
+        fecha_compra_fin: fFVal,
+        provider, proveedor: provider, empresa: provider, proveedor_slug: provider,
+        limit: folio ? 5 : 1000
+      };
+      const headers = {
+        'Content-Type':'application/x-www-form-urlencoded',
+        'X-Provider': provider
+      };
+
+      const url = SEARCH_BASE + SEARCH_PATH;
+      const formBody = toFormBody(body);
+
+      console.groupCollapsed('%c[ACTIVIDADES] Buscar → ' + url, 'background:#28518f;color:#fff;padding:2px 6px;border-radius:4px;');
+      console.log('Headers:', headers);
+      console.log('Body (obj):'); console.table(body);
+      console.log('Body (x-www-form-urlencoded):', formBody);
+      console.groupEnd();
+
+      try{
+        const res=await fetch(url,{method:'POST',headers,body:formBody});
+        const text = await res.text().catch(()=>'');
+
+        console.groupCollapsed('%c[ACTIVIDADES] Respuesta Buscar ' + res.status, 'background:' + (res.ok ? '#2d7a46' : '#b33434') + ';color:#fff;padding:2px 6px;border-radius:4px;');
+        console.log('Status:', res.status, res.statusText);
+        console.log('Texto crudo:', text);
+        let parsed = null; try{ parsed = JSON.parse(text); }catch(_){}
+        if (parsed) console.log('JSON:', parsed);
+        console.groupEnd();
+
+        if(!res.ok){
+          document.getElementById('resumen').textContent = (I18N[currentLang] || I18N.es).errorConsulta(res.status);
+          show(document.getElementById('vacio')); document.getElementById('grid').innerHTML=''; return;
+        }
+
+        const data = parsed || {};
+        const items=Array.isArray(data)?data:(Array.isArray(data.data)?data.data:[]);
+
+        let scoped = items.filter(it=>{
+          const p = (it.proveedor_slug || it.proveedor || it.company || it.empresa || it.id_proveedor || it.proveedor_id || '').toString();
+          return provider ? slugify(p) === provider : true;
+        });
+
+        if (folio)  scoped = scoped.filter(it => norm(it.folio) === norm(folio));
+        if (nombre) scoped = scoped.filter(it => norm(it.nombre_cliente || '').includes(norm(nombre)));
+        if (compraI || compraFEnd) scoped = scoped.filter(it => {
+          const d = compraDateOf(it);
+          return !!d && (!compraI || d>=compraI) && (!compraFEnd || d<=compraFEnd);
+        });
+
+        scoped.sort((a,b)=>{
+          const da = compraDateOf(a); const db = compraDateOf(b);
+          return (db?db.getTime():0) - (da?da.getTime():0);
+        });
+
+        state.items = scoped;
+        renderList(scoped);
+      }catch(e){
+        document.getElementById('resumen').textContent=(I18N[currentLang] || I18N.es).errorRed;
+        show(document.getElementById('vacio')); document.getElementById('grid').innerHTML='';
+      }finally{
+        if (btn) { btn.disabled=false; btn.textContent=(I18N[currentLang] || I18N.es).buscar; }
+      }
+    }
+
+    function toFormBody(o){ const p=new URLSearchParams(); Object.entries(o).forEach(([k,v])=>{ if(v!==undefined&&v!==null&&v!=='')p.append(k,v);}); return p.toString(); }
+
+    // VALIDACIÓN Y GUARDADO
+    function validarCamposReserva(){
+      const faltan = [];
+      const folio = document.getElementById('folio_reservacion').value.trim().toUpperCase();
+      const fecha = document.getElementById('fecha_reservacion').value;
+      const hora  = document.getElementById('hora_reservacion').value;
+
+      if (!folio) faltan.push((I18N[currentLang] || I18N.es).folioResLabel);
+      if (!fecha) faltan.push((I18N[currentLang] || I18N.es).fechaResLabel);
+      if (!hora)  faltan.push((I18N[currentLang] || I18N.es).horaResLabel);
+
+      return { ok: faltan.length === 0, faltan, folio, fecha, hora };
+    }
+
+    async function guardar(){
+      if(!state.selected) return;
+      const rec = state.selected;
+
+      const dict = I18N[currentLang] || I18N.es;
+      const v = validarCamposReserva();
+      if (!v.ok) { toast(dict.faltanCampos(v.faltan), 'error'); return; }
+
+      const $folio = document.getElementById('folio_reservacion');
+      $folio.value = v.folio;
+
+      const provider = slugify(state.provider);
+      if (!provider) { postToParent({type:'requestSession',scope:'actividades'}); return; }
+
+      const bGuardar = document.getElementById('btnGuardar');
+      const bCancelar = document.getElementById('btnCancelar');
+      if (bGuardar) bGuardar.disabled = true;
+      if (bCancelar) bCancelar.disabled = true;
+
+      // ===== Derivar datos para enviar al backend (que usará el correo) =====
+      let capacidad =
+        (rec.capacidad ?? rec.pax ?? rec.capacity ?? rec.capacidad_pax ?? rec.max_pax ?? rec.pax_max ?? rec.personas ?? rec.pasajeros ?? '')
+          .toString().trim();
+
+      let duracion =
+        (rec.Duracion ?? rec.duracion ?? rec.tiempo ?? rec.time ?? rec.duration ?? '')
+          .toString().trim();
+
+      const etiqueta = String(rec.etiqueta || '').trim();
+      if (etiqueta) {
+        const parts = etiqueta.split('+').map(s => s.trim()).filter(Boolean);
+        if (!capacidad && parts[0]) capacidad = parts[0];
+        if (!duracion && parts[1]) duracion  = parts[1];
+      }
+
+      const cantidad_paquete = Number(
+        rec.cantidad_paquete ?? rec.cantidad_paquetes ?? rec.paquetes ?? rec.num_paquetes ?? rec.cantidad ?? 0
+      ) || 0;
+
+      const notas = (rec.notas ?? rec.nota ?? '').toString().trim();
+      const paquete = [capacidad, duracion].filter(Boolean).join(' · ');
+
+      // ===== Payload FINAL =====
+      const payload={
+        folio: rec.folio,
+        token_qr: rec.token_qr || '',
+        folio_reservacion: v.folio,
+        fecha_reservacion: v.fecha,
+        hora_reservacion : v.hora,
+        fechareg_reservacion: nowLocalStamp(),
+        estatus_actividad: 'Reservado',
+        proveedor: provider,
+        usuario_administracion: state.user?.nombre || 'desconocido',
+
+        // 👇 nuevos campos para el correo
+        capacidad,
+        cantidad_paquete,
+        notas,
+        duracion,
+        paquete
+      };
+      const headers = {
+        'Content-Type':'application/x-www-form-urlencoded',
+        'X-Provider': provider,
+        'X-User': state.user?.nombre || ''
+      };
+
+      const url = (UPDATE_BASE || '') + UPDATE_PATH;
+      const formBody = toFormBody(payload);
+
+      console.groupCollapsed('%c[ACTIVIDADES] Guardar Reserva → ' + url, 'background:#28518f;color:#fff;padding:2px 6px;border-radius:4px;');
+      console.log('Headers:', headers);
+      console.log('Payload (obj):'); console.table(payload);
+      console.log('Body (x-www-form-urlencoded):', formBody);
+      console.groupEnd();
+
+      try{
+        const res=await fetch(url,{method:'POST',headers,body:formBody});
+        const text = await res.text().catch(()=>'');
+
+        console.groupCollapsed('%c[ACTIVIDADES] Respuesta Guardar ' + res.status, 'background:' + (res.ok ? '#2d7a46' : '#b33434') + ';color:#fff;padding:2px 6px;border-radius:4px;');
+        console.log('Status:', res.status, res.statusText);
+        console.log('Texto crudo:', text);
+        let json=null; try{ json = JSON.parse(text); }catch(_){}
+        if (json) console.log('JSON:', json);
+        console.groupEnd();
+
+        if (!res.ok) { 
+          if (bGuardar) bGuardar.disabled = false;
+          if (bCancelar) bCancelar.disabled = false;
+          toast(dict.noGuardar, 'error'); 
+          return; 
+        }
+
+        // Reflejar cambios locales
+        rec.folio_reservacion = v.folio;
+        rec.fecha_reservacion = v.fecha;
+        rec.hora_reservacion  = v.hora;
+        rec.estatus_actividad = 'Reservado';
+        rec.fechareg_reservacion = rec.fechareg_reservacion || payload.fechareg_reservacion;
+        rec.usuario_administracion = state.user?.nombre || rec.usuario_administracion || '';
+
+        document.getElementById('bloqueResumen').innerHTML = buildSummaryHTML(rec);
+        closeDetalle();
+
+        requestAnimationFrame(() => {
+          if (json && json.success) toast(dict.guardadoOk);
+          else toast(dict.guardadoSinDetalle);
+        });
+
+        const card = document.querySelector(`.card[data-folio="${rec.folio}"]`);
+        if (card) ensureEditUI(card, rec);
+
+      }catch(e){
+        console.error('[ACTIVIDADES] Error de red:', e);
+        toast(dict.errorRedGuardar, 'error');
+      }finally{
+        if (bGuardar) bGuardar.disabled = false;
+        if (bCancelar) bCancelar.disabled = false;
+      }
+    }
+
+    window.addEventListener('message',(e)=>{
+      if (!ORIGIN_OK(e.origin)) return;
+      const d=e.data||{};
+
+      if (d.type === 'CTS_LANG') {
+        setLang(d.lang || d.language || d.value);
+        return;
+      }
+
+      if(d?.type==='logout:ack'||d?.ack==='logout'||d?.status==='logged_out'){ return; }
+
+      const nombre   = d?.sessionActividades?.nombre
+                    || d?.actividad_admin?.nombre
+                    || d?.actividad_operador?.nombre
+                    || d?.user?.nombre || d?.usuario || d?.Nombre || d?.representante || '';
+
+      const providerRaw = d?.sessionActividades?.provider
+                       || d?.actividad_admin?.provider
+                       || d?.sessionActividades?.provider_name
+                       || d?.actividad_admin?.provider_name
+                       || d?.empresa || d?.company || '';
+
+      if(nombre) setUserName(nombre);
+      if(providerRaw) state.provider=slugify(providerRaw);
+    });
+
+    document.getElementById('btnBuscar')?.addEventListener('click', buscar);
+    document.getElementById('btnLimpiar')?.addEventListener('click', ()=>{
+      const dict = I18N[currentLang] || I18N.es;
+      document.getElementById('fFolio').value='';
+      document.getElementById('fNombre').value='';
+      document.getElementById('fcFechaI').value='';
+      document.getElementById('fcFechaF').value='';
+      document.getElementById('grid').innerHTML='';
+      hide(document.getElementById('vacio'));
+      document.getElementById('resumen').textContent='';
+      const pag=document.getElementById('paginador'); if(pag){ pag.style.display='none'; pag.innerHTML=''; }
+      state.items=[]; state.page=1;
+      scrollPageTop();
+      // re-aplica textos base
+      applyLang();
+    });
+    document.getElementById('btnCerrar')?.addEventListener('click', ()=>{ closeDetalle(); });
+    document.getElementById('btnCancelar')?.addEventListener('click', ()=>{ closeDetalle(); });
+    document.getElementById('btnGuardar')?.addEventListener('click', guardar);
+    document.getElementById('logoutBtn')?.addEventListener('click', ()=>{
+      const dict = I18N[currentLang] || I18N.es;
+      const btn=document.getElementById('logoutBtn'); if(btn){ btn.disabled=true; btn.textContent=dict.logoutClosing; }
+      postToParent({type:'forceLogout',role:'actividad_admin',scope:'actividades'});
+      postToParent({action:'logout',scope:'actividades'});
+      postToParent({type:'CLEAR_SESSIONS',keys:['sessionActividades','actividad_admin','actividad_operador']});
+      setTimeout(()=>{ postToParent({ type:'need:redirect', to:'/login', reason:'no-ack' }); }, 700);
+    });
+
+    function boot(){
+      computeHeaderOffset();
+      document.getElementById('welcomeBar').style.display='flex';
+      applyLang();
+      // Pide sesión y también idioma
+      postToParent({type:'requestSession',scope:'actividades'});
+      postToParent({type:'iframe:boot',scope:'actividades'});
+      postToParent({type:'CTS_LANG_REQ',scope:'actividades'});
+    }
+
+    document.addEventListener('DOMContentLoaded', boot);
+    window.addEventListener('resize', computeHeaderOffset);
+    setTimeout(() => {
+      if (!state.user.nombre) postToParent({type:'requestSession',scope:'actividades', reason:'watchdog'});
+    }, 2000);
+  </script>
+</body>
+</html>

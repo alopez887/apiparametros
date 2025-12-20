@@ -20,7 +20,6 @@ const GAS_TIMEOUT_MS = Number(process.env.GAS_TIMEOUT_MS || 15000);
  *  6) Si GAS responde ok, actualizar email_reservacion = 'enviado'
  *  7) Devolver resultado
  */
-
 export async function reenviarCorreoReservacion(req, res) {
   try {
     const folio = String(req.body?.folio || '').trim();
@@ -50,6 +49,9 @@ export async function reenviarCorreoReservacion(req, res) {
     }
 
     let reserva = rows[0];
+
+    // Guardar status previo para regresarlo al front (útil para ver qué traía antes)
+    const prevStatus = (reserva.email_reservacion || '').toString().trim() || null;
 
     // 2) Enriquecer con datos del proveedor (igual que en el preview)
     reserva = await enriquecerReservaConProveedor(reserva);
@@ -102,13 +104,14 @@ export async function reenviarCorreoReservacion(req, res) {
     // 5) Llamar a GAS_URL con el payload
     const payloadGAS = {
       token:  GAS_TOKEN,
-      folio:  reserva.folio,
+      ts:     Date.now(),          // ✅ recomendado (por si ENFORCE_TS_SEC se enciende)
+      folio:  reserva.folio,       // ✅ idempotencia / trazabilidad en GAS
       to:     emailTo,
-      cc,                    // puede ser undefined; depende de si hay proveedor
+      cc,                          // puede ser undefined; depende de si hay proveedor
       subject,
       html,
-      // Opcional: metadata para logs en GAS
-      tipoServicio: reserva.tipo_servicio,  // 'actividad' | 'Actividades'
+      // metadata para logs en GAS
+      tipoServicio: reserva.tipo_servicio,
       idioma:       reserva.idioma || 'es',
     };
 
@@ -173,7 +176,9 @@ export async function reenviarCorreoReservacion(req, res) {
       ok: true,
       folio,
       email_reservacion: updated?.email_reservacion || 'enviado',
+      last_status_before_send: prevStatus,
       gas: gasJson,
+      note: 'El motivo exacto (si hay rebote) llegará después cuando el scanner lo detecte y actualice email_reservacion.',
     });
   } catch (err) {
     console.error('❌ reenviarCorreoReservacion (ACT):', err);

@@ -1,4 +1,4 @@
-// correoActividadesPreview.js 
+// correoActividadesPreview.js
 // PREVIEW para ACTIVIDADES usando el MISMO layout que enviarCorreo.js
 // (¡Gracias por tu compra! / Thanks for your purchase!)
 
@@ -129,34 +129,34 @@ export function buildPreviewActividadesFromReserva(reserva) {
 
   // ========= Mapear `reserva` a un objeto `datos` parecido al enviarCorreo.js =========
   const datos = {
-    folio:           reserva.folio,
-    idioma:          reserva.idioma,
-    nombre_cliente:  reserva.nombre_cliente || '',
-    correo_cliente:  reserva.correo_cliente || '',
+    folio:            reserva.folio,
+    idioma:           reserva.idioma,
+    nombre_cliente:   reserva.nombre_cliente || '',
+    correo_cliente:   reserva.correo_cliente || '',
     telefono_cliente: reserva.telefono_cliente || '',
-    nombre_tour:     reserva.nombre_tour || reserva.actividad || reserva.tour || '',
+    nombre_tour:      reserva.nombre_tour || reserva.actividad || reserva.tour || '',
     // PAX / combo
-    tipo_precio:     (reserva.tipo_precio || '').toLowerCase(),
-    actividades:       reserva.actividades || null,
-    combo_actividades: reserva.combo_actividades || '',
-    paquete:           reserva.paquete || reserva.capacidad || '',
-    cantidad_paquete:  reserva.cantidad_paquete || reserva.cantidad_pax || 0,
+    tipo_precio:        (reserva.tipo_precio || '').toLowerCase(),
+    actividades:        reserva.actividades || null,
+    combo_actividades:  reserva.combo_actividades || '',
+    paquete:            reserva.paquete || reserva.capacidad || '',
+    cantidad_paquete:   reserva.cantidad_paquete || reserva.cantidad_pax || 0,
     // precios adultos/niños
-    cantidad_adulto:   reserva.cantidad_adulto || reserva.num_adultos || 0,
-    cantidad_nino:     reserva.cantidad_nino   || reserva.num_ninos  || 0,
-    precio_adulto:     reserva.precio_adulto   || 0,
-    precio_nino:       reserva.precio_nino     || 0,
-    duracion:          reserva.duracion || '',
+    cantidad_adulto:    reserva.cantidad_adulto || reserva.num_adultos || 0,
+    cantidad_nino:      reserva.cantidad_nino   || reserva.num_ninos  || 0,
+    precio_adulto:      reserva.precio_adulto   || 0,
+    precio_nino:        reserva.precio_nino     || 0,
+    duracion:           reserva.duracion || '',
     // totales
-    total_pago:      reserva.total_pago || reserva.total || reserva.precio || 0,
-    moneda:          reserva.moneda || 'USD',
-    nota:            reserva.nota || reserva.comentarios || '',
+    total_pago:       reserva.total_pago || reserva.total || reserva.precio || 0,
+    moneda:           reserva.moneda || 'USD',
+    nota:             reserva.nota || reserva.comentarios || '',
     // proveedor enriquecido
     proveedor_nombre:   reserva.proveedor_nombre || '',
     proveedor_email:    reserva.proveedor_email || '',
     proveedor_telefono: reserva.proveedor_telefono || '',
     // imagen
-    imagen:            reserva.imagen || reserva.img_tour || '',
+    imagen:           reserva.imagen || reserva.img_tour || '',
   };
 
   const imgTourUrl0 = sanitizeUrl(datos.imagen);
@@ -232,7 +232,14 @@ export function buildPreviewActividadesFromReserva(reserva) {
     </div>
   `.trim();
 
-  // ====== Inner (igual que enviarCorreo.js pero con src directos) ======
+  // ✅ NUEVO: firma oculta CTS para que el scanner de rebotes lo detecte también en reenvíos
+  const firmaCTS = `
+    <div style="display:none!important;opacity:0;color:transparent;height:0;max-height:0;overflow:hidden;">
+      CTS_MAIL=1|FOLIO=${String(datos.folio || '').trim()}|TO=${String(datos.correo_cliente || '').trim().toLowerCase()}
+    </div>
+  `.trim();
+
+  // ====== Inner ======
   const mensajeInner = `
     <table style="width:100%;margin-bottom:10px;border-collapse:collapse;">
       <tr>
@@ -278,6 +285,8 @@ export function buildPreviewActividadesFromReserva(reserva) {
     <p style="margin-top:14px;font-size:14px;color:#555;line-height:1.3;">
       &#128231; ${T.sentTo}: <a href="mailto:${datos.correo_cliente}" style="color:#1b6ef3;text-decoration:none;">${datos.correo_cliente}</a>
     </p>
+
+    ${firmaCTS}
   `.trim();
 
   const mensajeHTML = `
