@@ -1,5 +1,5 @@
 // /posponeremail/correosReservacionPospuestos.js
-import pool from './conexion.js';
+import pool from '../conexion.js';
 
 /**
  * Normaliza un string de fecha tipo YYYY-MM-DD.
