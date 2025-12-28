@@ -1,4 +1,4 @@
-// /apiparametros/posponeremail/posponerEmail.js 
+//posponeremail/posponerEmail.js 
 import pool from '../../conexion.js';
 
 /**

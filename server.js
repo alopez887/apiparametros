@@ -82,7 +82,7 @@ import { cambiarEstatusActividadCombo } from './actividades/actividadcombo/estat
 import { crearCatalogoCombo } from './actividades/actividadcombo/crearCatalogoCombo.js';
 import { actualizarCatalogoCombo } from './actividades/actividadcombo/actualizarCatalogoCombo.js';
 import { estatusCatalogoCombo } from './actividades/actividadcombo/estatusCatalogoCombo.js';
-import { posponerEmail } from './apiparametros/posponeremail/posponerEmail.js';
+import { posponerEmail } from './posponeremail/posponerEmail.js';
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
