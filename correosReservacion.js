@@ -16,7 +16,7 @@ function normalizarFecha(str) {
 /**
  * GET /api/correos-reservacion-error
  * Devuelve SOLO el número total de reservaciones cuyo email_reservacion
- * es distinto de 'enviado'.
+ * es distinto de 'enviado' Y que NO estén pospuestas (email_pospuesto = false).
  */
 export async function contarCorreosReservacionError(req, res) {
   try {
@@ -24,6 +24,7 @@ export async function contarCorreosReservacionError(req, res) {
       SELECT COUNT(*) AS total
       FROM reservaciones
       WHERE COALESCE(LOWER(email_reservacion), '') <> 'enviado'
+        AND COALESCE(email_pospuesto, false) = false
     `;
     const { rows } = await pool.query(sql);
     const total = Number(rows?.[0]?.total || 0);
@@ -40,7 +41,7 @@ export async function contarCorreosReservacionError(req, res) {
 /**
  * GET /api/correos-reservacion-error/lista?desde=YYYY-MM-DD&hasta=YYYY-MM-DD
  * Lista las reservaciones cuyo email_reservacion es distinto de 'enviado'
- * en el rango de fechas indicado (fecha::date).
+ * en el rango de fechas indicado (fecha::date) y que NO estén pospuestas.
  * Si NO se mandan desde/hasta, NO se aplica filtro de fecha (lista global).
  */
 export async function listarCorreosReservacionError(req, res) {
@@ -48,7 +49,11 @@ export async function listarCorreosReservacionError(req, res) {
     const { desde, hasta } = req.query || {};
 
     // armamos WHERE dinámico
-    let where  = `COALESCE(LOWER(email_reservacion), '') <> 'enviado'`;
+    // ✅ IMPORTANTE: además de "no enviado", excluimos pospuestos
+    let where = `
+      COALESCE(LOWER(email_reservacion), '') <> 'enviado'
+      AND COALESCE(email_pospuesto, false) = false
+    `;
     const params = [];
 
     let outDesde = null;
@@ -79,7 +84,8 @@ export async function listarCorreosReservacionError(req, res) {
         fecha,
         correo_cliente,
         email_reservacion,
-        tipo_servicio
+        tipo_servicio,
+        email_pospuesto
       FROM reservaciones
       WHERE ${where}
       ORDER BY fecha DESC
@@ -90,7 +96,6 @@ export async function listarCorreosReservacionError(req, res) {
 
     return res.json({
       ok: true,
-      // si no se mandó un límite, regresamos null
       desde: outDesde,
       hasta: outHasta,
       total: rows.length,
