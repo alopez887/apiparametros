@@ -83,7 +83,7 @@ import { crearCatalogoCombo } from './actividades/actividadcombo/crearCatalogoCo
 import { actualizarCatalogoCombo } from './actividades/actividadcombo/actualizarCatalogoCombo.js';
 import { estatusCatalogoCombo } from './actividades/actividadcombo/estatusCatalogoCombo.js';
 import { posponerEmail } from './posponeremail/posponerEmail.js';
-import { contarCorreosPospuestos } from './posponeremail/listarEmailpospuesto.js';
+import { contarCorreosPospuestos, listarCorreosPospuestos } from './posponeremail/correosReservacionPospuestos.js';
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
@@ -126,6 +126,7 @@ app.post('/api/correos-reservacion-error/enviar-tours', reenviarCorreoTours);
 // 🔹 Posponer correos
 app.post('/api/correos-reservacion-error/posponer', posponerEmail);
 app.get('/api/correos-reservacion-error/pospuestos', contarCorreosPospuestos);
+app.get('/api/correos-reservacion-error/pospuestos/lista', listarCorreosPospuestos);
 
 // 🔹 USUARIOS TRANSPORTE
 app.get('/api/transporte/usuarios-transporte', listarUsuariosTransporte);
