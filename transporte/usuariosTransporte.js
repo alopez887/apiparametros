@@ -1,4 +1,4 @@
-// registros/usuariosTransporte.js 
+//// registros/usuariosTransporte.js 
 import pool from '../conexion.js';
 
 export async function listarUsuariosTransporte(req, res) {
