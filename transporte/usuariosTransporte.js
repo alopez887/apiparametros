@@ -2,7 +2,7 @@
 import pool from '../conexion.js';
 
 export async function listarUsuariosTransporte(req, res) {
-  const allowedTipos = ['representante', 'chofer', 'supervisor', 'administrador'];
+  const allowedTipos = ['representante', 'chofer', 'supervisor', 'administrador', 'sistemas'];
 
   try {
     let { tipo, page, limit, search } = req.query || {};
