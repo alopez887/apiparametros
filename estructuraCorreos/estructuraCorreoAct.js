@@ -3,38 +3,6 @@
 // ⬅️ Usa el MISMO pool que todos tus handlers (tipo-cambio, etc.)
 import pool from '../conexion.js';
 
-/**
- * Tabla esperada:
- * ajustes_correo(
- *   id BIGSERIAL PK,
- *   plantilla_servicio TEXT NOT NULL,   -- activities | transport | tours
- *   plantilla_momento  TEXT NOT NULL,   -- purchase | schedule | single
- *
- *   bcc                TEXT NOT NULL DEFAULT '',
- *   nombre_remitente   TEXT NOT NULL DEFAULT '',
- *   logo_url           TEXT NOT NULL DEFAULT '',
- *
- *   asunto_es          TEXT NOT NULL DEFAULT '',
- *   asunto_en          TEXT NOT NULL DEFAULT '',
- *
- *   titulo_es          TEXT NOT NULL DEFAULT '',
- *   titulo_en          TEXT NOT NULL DEFAULT '',
- *
- *   proveedor_es       TEXT NOT NULL DEFAULT '',
- *   proveedor_en       TEXT NOT NULL DEFAULT '',
- *
- *   recomendaciones_es TEXT NOT NULL DEFAULT '',
- *   recomendaciones_en TEXT NOT NULL DEFAULT '',
- *
- *   enviado_a_es       TEXT NOT NULL DEFAULT '',
- *   enviado_a_en       TEXT NOT NULL DEFAULT '',
- *
- *   created_at         TIMESTAMPTZ NOT NULL DEFAULT now(),
- *   updated_at         TIMESTAMPTZ NOT NULL DEFAULT now(),
- *
- *   UNIQUE(plantilla_servicio, plantilla_momento)
- * );
- */
 
 const ALLOWED_SERVICES = new Set(['activities', 'transport', 'tours']);
 const ALLOWED_MOMENTS  = new Set(['purchase', 'schedule', 'single']);
@@ -80,12 +48,12 @@ export async function obtenerAjustesCorreo(req, res, next) {
         asunto_en,
         titulo_es,
         titulo_en,
-        proveedor_es,
-        proveedor_en,
+        texto_proveedor_es AS proveedor_es,
+        texto_proveedor_en AS proveedor_en,
         recomendaciones_es,
         recomendaciones_en,
-        enviado_a_es,
-        enviado_a_en,
+        texto_enviado_a_es AS enviado_a_es,
+        texto_enviado_a_en AS enviado_a_en,
         created_at,
         updated_at
       FROM ajustes_correo
@@ -162,24 +130,26 @@ export async function guardarAjustesCorreo(req, res, next) {
       return res.status(400).json({ ok:false, error:'momento inválido' });
     }
 
-    const bcc               = asText(req.body.bcc);
-    const nombre_remitente  = asText(req.body.nombre_remitente);
-    const logo_url          = asText(req.body.logo_url);
+    const bcc                = asText(req.body.bcc);
+    const nombre_remitente   = asText(req.body.nombre_remitente);
+    const logo_url           = asText(req.body.logo_url);
 
-    const asunto_es         = asText(req.body.asunto_es);
-    const asunto_en         = asText(req.body.asunto_en);
+    const asunto_es          = asText(req.body.asunto_es);
+    const asunto_en          = asText(req.body.asunto_en);
 
-    const titulo_es         = asText(req.body.titulo_es);
-    const titulo_en         = asText(req.body.titulo_en);
+    const titulo_es          = asText(req.body.titulo_es);
+    const titulo_en          = asText(req.body.titulo_en);
 
-    const proveedor_es      = asText(req.body.proveedor_es);
-    const proveedor_en      = asText(req.body.proveedor_en);
+    // 🔹 Estos vienen del iframe como proveedor_* pero se guardan como texto_proveedor_*
+    const proveedor_es       = asText(req.body.proveedor_es);
+    const proveedor_en       = asText(req.body.proveedor_en);
 
     const recomendaciones_es = asText(req.body.recomendaciones_es);
     const recomendaciones_en = asText(req.body.recomendaciones_en);
 
-    const enviado_a_es      = asText(req.body.enviado_a_es);
-    const enviado_a_en      = asText(req.body.enviado_a_en);
+    // 🔹 Estos vienen del iframe como enviado_a_* pero se guardan como texto_enviado_a_*
+    const enviado_a_es       = asText(req.body.enviado_a_es);
+    const enviado_a_en       = asText(req.body.enviado_a_en);
 
     const sql = `
       INSERT INTO ajustes_correo (
@@ -192,31 +162,31 @@ export async function guardarAjustesCorreo(req, res, next) {
         asunto_en,
         titulo_es,
         titulo_en,
-        proveedor_es,
-        proveedor_en,
+        texto_proveedor_es,
+        texto_proveedor_en,
         recomendaciones_es,
         recomendaciones_en,
-        enviado_a_es,
-        enviado_a_en
+        texto_enviado_a_es,
+        texto_enviado_a_en
       ) VALUES (
         $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15
       )
       ON CONFLICT (plantilla_servicio, plantilla_momento)
       DO UPDATE SET
-        bcc                = EXCLUDED.bcc,
-        nombre_remitente   = EXCLUDED.nombre_remitente,
-        logo_url           = EXCLUDED.logo_url,
-        asunto_es          = EXCLUDED.asunto_es,
-        asunto_en          = EXCLUDED.asunto_en,
-        titulo_es          = EXCLUDED.titulo_es,
-        titulo_en          = EXCLUDED.titulo_en,
-        proveedor_es       = EXCLUDED.proveedor_es,
-        proveedor_en       = EXCLUDED.proveedor_en,
-        recomendaciones_es = EXCLUDED.recomendaciones_es,
-        recomendaciones_en = EXCLUDED.recomendaciones_en,
-        enviado_a_es       = EXCLUDED.enviado_a_es,
-        enviado_a_en       = EXCLUDED.enviado_a_en,
-        updated_at         = now()
+        bcc                 = EXCLUDED.bcc,
+        nombre_remitente    = EXCLUDED.nombre_remitente,
+        logo_url            = EXCLUDED.logo_url,
+        asunto_es           = EXCLUDED.asunto_es,
+        asunto_en           = EXCLUDED.asunto_en,
+        titulo_es           = EXCLUDED.titulo_es,
+        titulo_en           = EXCLUDED.titulo_en,
+        texto_proveedor_es  = EXCLUDED.texto_proveedor_es,
+        texto_proveedor_en  = EXCLUDED.texto_proveedor_en,
+        recomendaciones_es  = EXCLUDED.recomendaciones_es,
+        recomendaciones_en  = EXCLUDED.recomendaciones_en,
+        texto_enviado_a_es  = EXCLUDED.texto_enviado_a_es,
+        texto_enviado_a_en  = EXCLUDED.texto_enviado_a_en,
+        updated_at          = now()
       RETURNING
         id,
         plantilla_servicio,
@@ -228,12 +198,12 @@ export async function guardarAjustesCorreo(req, res, next) {
         asunto_en,
         titulo_es,
         titulo_en,
-        proveedor_es,
-        proveedor_en,
+        texto_proveedor_es AS proveedor_es,
+        texto_proveedor_en AS proveedor_en,
         recomendaciones_es,
         recomendaciones_en,
-        enviado_a_es,
-        enviado_a_en,
+        texto_enviado_a_es AS enviado_a_es,
+        texto_enviado_a_en AS enviado_a_en,
         created_at,
         updated_at
     `;
