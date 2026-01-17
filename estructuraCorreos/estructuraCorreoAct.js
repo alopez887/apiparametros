@@ -1,8 +1,7 @@
 // /estructuraCorreos/estructuraCorreoAct.js
 
-// ⬅️ MUY IMPORTANTE: usa el MISMO pool que ya existe en tu proyecto.
-// Ajusta la ruta EXACTA como en, por ejemplo, listarActividades.js / correosReservacion.js, etc.
-import { pool } from '../db.js'; // <-- CAMBIA ESTA RUTA SI ES NECESARIO
+// ⬅️ Usa el MISMO pool que todos tus handlers (tipo-cambio, etc.)
+import pool from '../conexion.js';
 
 /**
  * Tabla esperada:
@@ -11,27 +10,27 @@ import { pool } from '../db.js'; // <-- CAMBIA ESTA RUTA SI ES NECESARIO
  *   plantilla_servicio TEXT NOT NULL,   -- activities | transport | tours
  *   plantilla_momento  TEXT NOT NULL,   -- purchase | schedule | single
  *
- *   bcc              TEXT NOT NULL DEFAULT '',
- *   nombre_remitente TEXT NOT NULL DEFAULT '',
- *   logo_url         TEXT NOT NULL DEFAULT '',
+ *   bcc                TEXT NOT NULL DEFAULT '',
+ *   nombre_remitente   TEXT NOT NULL DEFAULT '',
+ *   logo_url           TEXT NOT NULL DEFAULT '',
  *
- *   asunto_es        TEXT NOT NULL DEFAULT '',
- *   asunto_en        TEXT NOT NULL DEFAULT '',
+ *   asunto_es          TEXT NOT NULL DEFAULT '',
+ *   asunto_en          TEXT NOT NULL DEFAULT '',
  *
- *   titulo_es        TEXT NOT NULL DEFAULT '',
- *   titulo_en        TEXT NOT NULL DEFAULT '',
+ *   titulo_es          TEXT NOT NULL DEFAULT '',
+ *   titulo_en          TEXT NOT NULL DEFAULT '',
  *
- *   proveedor_es     TEXT NOT NULL DEFAULT '',
- *   proveedor_en     TEXT NOT NULL DEFAULT '',
+ *   proveedor_es       TEXT NOT NULL DEFAULT '',
+ *   proveedor_en       TEXT NOT NULL DEFAULT '',
  *
  *   recomendaciones_es TEXT NOT NULL DEFAULT '',
  *   recomendaciones_en TEXT NOT NULL DEFAULT '',
  *
- *   enviado_a_es     TEXT NOT NULL DEFAULT '',
- *   enviado_a_en     TEXT NOT NULL DEFAULT '',
+ *   enviado_a_es       TEXT NOT NULL DEFAULT '',
+ *   enviado_a_en       TEXT NOT NULL DEFAULT '',
  *
- *   created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
- *   updated_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+ *   created_at         TIMESTAMPTZ NOT NULL DEFAULT now(),
+ *   updated_at         TIMESTAMPTZ NOT NULL DEFAULT now(),
  *
  *   UNIQUE(plantilla_servicio, plantilla_momento)
  * );
@@ -69,7 +68,7 @@ export async function obtenerAjustesCorreo(req, res, next) {
       return res.status(400).json({ ok:false, error:'momento inválido' });
     }
 
-    const q = `
+    const sql = `
       SELECT
         id,
         plantilla_servicio,
@@ -90,19 +89,21 @@ export async function obtenerAjustesCorreo(req, res, next) {
         created_at,
         updated_at
       FROM ajustes_correo
-      WHERE plantilla_servicio = $1 AND plantilla_momento = $2
+      WHERE plantilla_servicio = $1
+        AND plantilla_momento  = $2
       LIMIT 1
     `;
-    const r = await pool.query(q, [servicio, momento]);
 
-    if (!r.rows.length) {
-      // Si no existe aún, regresamos payload "vacío" para que el iframe arranque sin tronar
+    const { rows } = await pool.query(sql, [servicio, momento]);
+
+    if (!rows.length) {
+      // No hay registro → regresamos payload vacío para que el iframe no truene
       return res.json({
         ok: true,
         found: false,
         payload: {
           plantilla_servicio: servicio,
-          plantilla_momento: momento,
+          plantilla_momento:  momento,
           bcc: '',
           nombre_remitente: '',
           logo_url: '',
@@ -120,7 +121,11 @@ export async function obtenerAjustesCorreo(req, res, next) {
       });
     }
 
-    return res.json({ ok:true, found:true, payload: r.rows[0] });
+    return res.json({
+      ok: true,
+      found: true,
+      payload: rows[0]
+    });
   } catch (err) {
     return next(err);
   }
@@ -132,14 +137,17 @@ export async function obtenerAjustesCorreo(req, res, next) {
  * {
  *   servicio: "activities" | "transport" | "tours",
  *   momento:  "purchase" | "schedule" | "single",
+ *
  *   bcc,
  *   nombre_remitente,
  *   logo_url,
+ *
  *   asunto_es, asunto_en,
  *   titulo_es, titulo_en,
+ *
  *   proveedor_es, proveedor_en,
- *   enviado_a_es, enviado_a_en,
- *   recomendaciones_es, recomendaciones_en
+ *   recomendaciones_es, recomendaciones_en,
+ *   enviado_a_es, enviado_a_en
  * }
  */
 export async function guardarAjustesCorreo(req, res, next) {
@@ -173,7 +181,7 @@ export async function guardarAjustesCorreo(req, res, next) {
     const enviado_a_es      = asText(req.body.enviado_a_es);
     const enviado_a_en      = asText(req.body.enviado_a_en);
 
-    const q = `
+    const sql = `
       INSERT INTO ajustes_correo (
         plantilla_servicio,
         plantilla_momento,
@@ -230,7 +238,7 @@ export async function guardarAjustesCorreo(req, res, next) {
         updated_at
     `;
 
-    const r = await pool.query(q, [
+    const { rows } = await pool.query(sql, [
       servicio,
       momento,
       bcc,
@@ -248,7 +256,7 @@ export async function guardarAjustesCorreo(req, res, next) {
       enviado_a_en
     ]);
 
-    return res.json({ ok:true, payload: r.rows[0] });
+    return res.json({ ok:true, payload: rows[0] });
   } catch (err) {
     return next(err);
   }
