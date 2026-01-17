@@ -1,4 +1,4 @@
-// server.js  
+//apiparametros/server.js  
 import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
@@ -84,6 +84,13 @@ import { actualizarCatalogoCombo } from './actividades/actividadcombo/actualizar
 import { estatusCatalogoCombo } from './actividades/actividadcombo/estatusCatalogoCombo.js';
 import { posponerEmail } from './posponeremail/posponerEmail.js';
 import { contarCorreosPospuestos, listarCorreosPospuestos } from './posponeremail/correosReservacionPospuestos.js';
+
+//=================================================================================================================================
+
+import {
+  obtenerAjustesCorreo,
+  guardarAjustesCorreo
+} from './estructuraCorreos/estructuraCorreoAct.js';
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
@@ -175,6 +182,11 @@ app.patch('/api/combos/:id/estatus', cambiarEstatusActividadCombo);
 app.post('/api/catalogos-combo', crearCatalogoCombo);
 app.put('/api/catalogos-combo/:id', actualizarCatalogoCombo);
 app.patch('/api/catalogos-combo/:id/estatus', estatusCatalogoCombo);
+
+// ===== Ajustes de correo (Sistemas) =====
+app.get('/api/ajustes-correo', obtenerAjustesCorreo);
+app.post('/api/ajustes-correo', guardarAjustesCorreo);
+
 
 app.use((req, res) => {
   res.status(404).json({ error: 'Ruta no encontrada' });
