@@ -3,6 +3,9 @@ import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 
+//Sistema de login
+import loginUsuarios from './loginUsuarios.js';
+
 // Handlers tipo de cambio
 import { obtenerTipoCambio } from './obtenerTipoCambio.js';
 import { guardarTipoCambio } from './guardarTipoCambio.js';
@@ -99,10 +102,14 @@ app.set('trust proxy', 1);
 app.use(cors());
 app.options('*', cors());
 app.use(express.json());
+app.use(express.urlencoded({ extended: true })); // 👈 NECESARIO para el login del iframe
 
 app.get('/', (_req, res) => {
   res.json({ ok: true, service: 'api-parametros', msg: 'API Parámetros OK' });
 });
+
+// ===== Login ==============
+app.post('/api/login-usuario', loginUsuarios);
 
 // ===== Tipo de cambio =====
 app.get('/api/tipo-cambio', obtenerTipoCambio);
