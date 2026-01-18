@@ -32,7 +32,7 @@ const slugify = (s = '') =>
     .toLowerCase().replace(/[^a-z0-9]+/g, '');
 
 export default async function loginUsuarios(req, res) {
-  // Soporta JSON y x-www-form-urlencoded (con urlencoded en server.js)
+  // Soporta JSON y x-www-form-urlencoded
   const usuarioRaw  = req.body?.usuario ?? '';
   const passwordRaw = req.body?.password ?? '';
 
@@ -48,21 +48,21 @@ export default async function loginUsuarios(req, res) {
   }
 
   try {
-    // 👇 Tabla central "usuarios" (la de tu captura)
+    // 👇 Tabla ya renombrada: usuarios_cts
     const { rows } = await pool.query(
       `
       SELECT
         id,
         usuario,
         nombre,
-        proveedor,           -- texto del proveedor (si aplica)
+        proveedor,           -- texto del proveedor
         password,
-        password_anterior,   -- ya existe / la agregaste, aún no la usamos aquí
+        password_anterior,   -- la nueva columna
         tipo_usuario,
         activo,
         creado,
         modificado
-      FROM usuarios
+      FROM usuarios_cts
       WHERE UPPER(usuario) = UPPER($1)
       LIMIT 1
       `,
@@ -91,7 +91,7 @@ export default async function loginUsuarios(req, res) {
       });
     }
 
-    // 🔴 Contraseña incorrecta (comparación simple, igual que en tus otros logins)
+    // 🔴 Contraseña incorrecta (comparación simple)
     const storedPass = String(u.password ?? '');
     const inputPass  = String(password);
 
@@ -117,15 +117,15 @@ export default async function loginUsuarios(req, res) {
         nombre: u.nombre,
 
         // roles/perfiles
-        tipo_usuario: u.tipo_usuario, // valor original (compat)
-        rol,                          // valor normalizado para el front
+        tipo_usuario: u.tipo_usuario, // original
+        rol,                          // normalizado para el front
 
-        // datos de proveedor (para actividades / filtros por proveedor)
+        // datos de proveedor (para actividades / filtros)
         proveedor: u.proveedor,
         provider,
         provider_name,
 
-        // alias de compatibilidad (por si los usas en algún lado)
+        // alias de compatibilidad
         proveedor_slug: provider || null,
         empresa: provider_name || null
       }
@@ -140,4 +140,3 @@ export default async function loginUsuarios(req, res) {
     });
   }
 }
-
