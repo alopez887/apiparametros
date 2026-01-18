@@ -52,6 +52,10 @@ export async function obtenerAjustesCorreo(req, res, next) {
         texto_proveedor_en AS proveedor_en,
         recomendaciones_es,
         recomendaciones_en,
+        politica_es,
+        politica_en,
+        redes_sociales_es,
+        redes_sociales_en,
         texto_enviado_a_es AS enviado_a_es,
         texto_enviado_a_en AS enviado_a_en,
         created_at,
@@ -83,6 +87,10 @@ export async function obtenerAjustesCorreo(req, res, next) {
           proveedor_en: '',
           recomendaciones_es: '',
           recomendaciones_en: '',
+          politica_es: '',
+          politica_en: '',
+          redes_sociales_es: '',
+          redes_sociales_en: '',
           enviado_a_es: '',
           enviado_a_en: ''
         }
@@ -115,6 +123,10 @@ export async function obtenerAjustesCorreo(req, res, next) {
  *
  *   proveedor_es, proveedor_en,
  *   recomendaciones_es, recomendaciones_en,
+ *
+ *   politica_es, politica_en,
+ *   redes_sociales_es, redes_sociales_en,
+ *
  *   enviado_a_es, enviado_a_en
  * }
  */
@@ -147,6 +159,14 @@ export async function guardarAjustesCorreo(req, res, next) {
     const recomendaciones_es = asText(req.body.recomendaciones_es);
     const recomendaciones_en = asText(req.body.recomendaciones_en);
 
+    // 🔹 Política (nuevos campos)
+    const politica_es        = asText(req.body.politica_es);
+    const politica_en        = asText(req.body.politica_en);
+
+    // 🔹 Redes sociales (nuevos campos)
+    const redes_sociales_es  = asText(req.body.redes_sociales_es);
+    const redes_sociales_en  = asText(req.body.redes_sociales_en);
+
     // 🔹 Estos vienen del iframe como enviado_a_* pero se guardan como texto_enviado_a_*
     const enviado_a_es       = asText(req.body.enviado_a_es);
     const enviado_a_en       = asText(req.body.enviado_a_en);
@@ -166,10 +186,14 @@ export async function guardarAjustesCorreo(req, res, next) {
         texto_proveedor_en,
         recomendaciones_es,
         recomendaciones_en,
+        politica_es,
+        politica_en,
+        redes_sociales_es,
+        redes_sociales_en,
         texto_enviado_a_es,
         texto_enviado_a_en
       ) VALUES (
-        $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15
+        $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19
       )
       ON CONFLICT (plantilla_servicio, plantilla_momento)
       DO UPDATE SET
@@ -184,6 +208,10 @@ export async function guardarAjustesCorreo(req, res, next) {
         texto_proveedor_en  = EXCLUDED.texto_proveedor_en,
         recomendaciones_es  = EXCLUDED.recomendaciones_es,
         recomendaciones_en  = EXCLUDED.recomendaciones_en,
+        politica_es         = EXCLUDED.politica_es,
+        politica_en         = EXCLUDED.politica_en,
+        redes_sociales_es   = EXCLUDED.redes_sociales_es,
+        redes_sociales_en   = EXCLUDED.redes_sociales_en,
         texto_enviado_a_es  = EXCLUDED.texto_enviado_a_es,
         texto_enviado_a_en  = EXCLUDED.texto_enviado_a_en,
         updated_at          = now()
@@ -202,6 +230,10 @@ export async function guardarAjustesCorreo(req, res, next) {
         texto_proveedor_en AS proveedor_en,
         recomendaciones_es,
         recomendaciones_en,
+        politica_es,
+        politica_en,
+        redes_sociales_es,
+        redes_sociales_en,
         texto_enviado_a_es AS enviado_a_es,
         texto_enviado_a_en AS enviado_a_en,
         created_at,
@@ -222,6 +254,10 @@ export async function guardarAjustesCorreo(req, res, next) {
       proveedor_en,
       recomendaciones_es,
       recomendaciones_en,
+      politica_es,
+      politica_en,
+      redes_sociales_es,
+      redes_sociales_en,
       enviado_a_es,
       enviado_a_en
     ]);
