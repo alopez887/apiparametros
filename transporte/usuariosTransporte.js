@@ -35,7 +35,7 @@ export async function listarUsuariosTransporte(req, res) {
     // ---- consulta de total ----
     const sqlCount = `
       SELECT COUNT(*) AS total
-      FROM usuarios_proveedor
+      FROM usuarios_cts
       ${whereSql}
     `;
 
@@ -57,7 +57,7 @@ export async function listarUsuariosTransporte(req, res) {
         activo,
         creado,
         modificado
-      FROM usuarios_proveedor
+      FROM usuarios_cts
       ${whereSql}
       ORDER BY nombre ASC
       LIMIT $${limitIndex}

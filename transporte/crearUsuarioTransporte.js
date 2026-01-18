@@ -26,10 +26,10 @@ export async function crearUsuarioTransporte(req, res) {
     }
 
     // ⚠️ IMPORTANTE:
-    // Tabla: usuarios_proveedor
+    // Tabla: usuarios_cts
     // Columnas: nombre, proveedor, usuario, password, tipo_usuario, activo
     const sql = `
-      INSERT INTO usuarios_proveedor
+      INSERT INTO usuarios_cts
         (nombre, proveedor, usuario, password, tipo_usuario, activo)
       VALUES
         ($1,    $2,        $3,      $4,       $5,           true)
@@ -144,7 +144,7 @@ export async function actualizarUsuarioTransporte(req, res) {
 
     params.push(userId);
     const sql = `
-      UPDATE usuarios_proveedor
+      UPDATE usuarios_cts
       SET ${setClauses.join(', ')}
       WHERE id = $${idx}
       RETURNING
@@ -230,7 +230,7 @@ export async function cambiarEstatusUsuarioTransporte(req, res) {
     }
 
     const sql = `
-      UPDATE usuarios_proveedor
+      UPDATE usuarios_cts
       SET
         activo = $1,
         modificado = NOW()
