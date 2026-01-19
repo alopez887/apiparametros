@@ -31,16 +31,6 @@ const slugify = (s = '') =>
     .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
     .toLowerCase().replace(/[^a-z0-9]+/g, '');
 
-// 🔹 Expiración por fecha "modificado" (> 1 mes)
-const MS_30_DIAS = 30 * 24 * 60 * 60 * 1000;
-const isPasswordExpired = (modificado) => {
-  if (!modificado) return false;
-  const last = new Date(modificado);
-  if (Number.isNaN(last.getTime())) return false;
-  const diff = Date.now() - last.getTime();
-  return diff > MS_30_DIAS;
-};
-
 export default async function loginUsuarios(req, res) {
   // Soporta JSON y x-www-form-urlencoded
   const usuarioRaw  = req.body?.usuario ?? '';
@@ -58,7 +48,7 @@ export default async function loginUsuarios(req, res) {
   }
 
   try {
-    // 👇 Tabla ya renombrada: usuarios_cts
+    // 👇 Tabla usuarios_cts + cálculo de expiración en Postgres
     const { rows } = await pool.query(
       `
       SELECT
@@ -71,7 +61,8 @@ export default async function loginUsuarios(req, res) {
         tipo_usuario,
         activo,
         creado,
-        modificado
+        modificado,
+        (NOW() - COALESCE(modificado, creado)) > INTERVAL '30 days' AS password_expirada
       FROM usuarios_cts
       WHERE UPPER(usuario) = UPPER($1)
       LIMIT 1
@@ -118,9 +109,10 @@ export default async function loginUsuarios(req, res) {
     const provider_name = u.proveedor || null;
     const provider      = provider_name ? slugify(provider_name) : null;
 
-    // 🔸 Verificar si la contraseña YA EXPIRÓ por fecha "modificado"
-    if (isPasswordExpired(u.modificado)) {
-      // 👉 NO damos login, solo avisamos al iframe que debe forzar cambio
+    // 🔸 Verificar si la contraseña YA EXPIRÓ (lo calcula Postgres)
+    const expired = u.password_expirada === true;
+
+    if (expired) {
       return res.status(200).json({
         success: false,
         code: 'PASSWORD_EXPIRED',
