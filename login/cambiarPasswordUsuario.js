@@ -1,5 +1,5 @@
 // /apiparametros/cambiarPasswordUsuario.js
-import pool from './conexion.js';
+import pool from '../conexion.js';
 
 // misma regla que en el iframe
 const PASSWORD_REGEX =

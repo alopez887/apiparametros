@@ -1,5 +1,5 @@
 // /apiparametros/loginUsuarios.js
-import pool from './conexion.js';
+import pool from '../conexion.js';
 
 // ─────────────────────────────────────────────
 // Utilidades
