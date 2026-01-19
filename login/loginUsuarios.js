@@ -31,6 +31,10 @@ const slugify = (s = '') =>
     .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
     .toLowerCase().replace(/[^a-z0-9]+/g, '');
 
+// MISMA REGLA QUE EN EL IFRAME / cambiarPasswordUsuario
+const PASSWORD_REGEX =
+  /^(?=.*[A-Z])(?=.*[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>/?]).{8,}$/;
+
 // ─────────────────────────────────────────────
 // Handler principal
 // ─────────────────────────────────────────────
@@ -62,12 +66,25 @@ export default async function loginUsuarios(req, res) {
         nombre,
         proveedor,           -- texto del proveedor
         password,
-        password_anterior,   -- la nueva columna
+        password_anterior,   -- columna para saber si ya pasó por cambio
         tipo_usuario,
         activo,
         creado,
         modificado,
-        (NOW() - COALESCE(modificado, creado)) > INTERVAL '30 days' AS password_expirada
+        COALESCE(modificado, creado) AS fecha_cambio,
+        CASE
+          -- Fase 1: nunca ha cambiado (password_anterior IS NULL) → forzar si tiene > 31 días
+          WHEN password_anterior IS NULL THEN
+            (NOW() - COALESCE(modificado, creado)) > INTERVAL '31 days'
+
+          -- Fase 2: ya cambió al menos una vez → forzar cada día 1 de mes
+          ELSE
+            (
+              NOW()::date = date_trunc('month', NOW())::date          -- es día 1 del mes
+              AND COALESCE(modificado, creado)::date < date_trunc('month', NOW())::date
+              -- y el último cambio fue antes del 1 de este mes
+            )
+        END AS password_expirada
       FROM usuarios_cts
       WHERE UPPER(usuario) = UPPER($1)
       LIMIT 1
@@ -93,10 +110,22 @@ export default async function loginUsuarios(req, res) {
           password_anterior,
           tipo_usuario,
           activo,
-          proveedor,           -- texto del proveedor (columna de tu tabla)
+          proveedor,           -- texto del proveedor
           created_at,
           updated_at,
-          (NOW() - COALESCE(updated_at, created_at)) > INTERVAL '30 days' AS password_expirada
+          COALESCE(updated_at, created_at) AS fecha_cambio,
+          CASE
+            -- Fase 1: nunca ha cambiado → forzar si tiene > 31 días
+            WHEN password_anterior IS NULL THEN
+              (NOW() - COALESCE(updated_at, created_at)) > INTERVAL '31 days'
+
+            -- Fase 2: ya cambió al menos una vez → forzar cada día 1 de mes
+            ELSE
+              (
+                NOW()::date = date_trunc('month', NOW())::date          -- es día 1
+                AND COALESCE(updated_at, created_at)::date < date_trunc('month', NOW())::date
+              )
+          END AS password_expirada
         FROM public.usuarios_actividades
         WHERE LOWER(usuario) = LOWER($1)
         LIMIT 1
@@ -143,8 +172,11 @@ export default async function loginUsuarios(req, res) {
       const providerNameA  = a.proveedor || null;
       const providerSlugA  = providerNameA ? slugify(providerNameA) : null;
 
-      // 🔸 Verificar si la contraseña YA EXPIRÓ (con created_at / updated_at)
-      const expiredA = a.password_expirada === true;
+      // 🔸 Verificar expiración por tiempo / día 1
+      const expiredByTimeA = a.password_expirada === true;
+      // 🔸 Verificar si la contraseña actual NO cumple el estándar
+      const isWeakA = !PASSWORD_REGEX.test(storedPassA);
+      const expiredA = expiredByTimeA || isWeakA;
 
       if (expiredA) {
         return res.status(200).json({
@@ -174,7 +206,7 @@ export default async function loginUsuarios(req, res) {
         });
       }
 
-      // ✅ Login OK desde usuarios_actividades (NO expirada)
+      // ✅ Login OK desde usuarios_actividades (NO expirada / NO débil)
       return res.json({
         success: true,
         message: 'Login exitoso',
@@ -231,8 +263,11 @@ export default async function loginUsuarios(req, res) {
     const provider_name = u.proveedor || null;
     const provider      = provider_name ? slugify(provider_name) : null;
 
-    // 🔸 Verificar si la contraseña YA EXPIRÓ (lo calcula Postgres)
-    const expired = u.password_expirada === true;
+    // 🔸 Verificar expiración por tiempo / día 1
+    const expiredByTime = u.password_expirada === true;
+    // 🔸 Verificar si la contraseña actual NO cumple el estándar
+    const isWeak = !PASSWORD_REGEX.test(storedPass);
+    const expired = expiredByTime || isWeak;
 
     if (expired) {
       return res.status(200).json({
@@ -262,7 +297,7 @@ export default async function loginUsuarios(req, res) {
       });
     }
 
-    // ✅ Login OK (NO expirada) desde usuarios_cts
+    // ✅ Login OK (NO expirada / NO débil) desde usuarios_cts
     return res.json({
       success: true,
       message: 'Login exitoso',
