@@ -55,7 +55,7 @@ export async function listarUsuariosPartners(req, res) {
   const whereClause = filters.length ? `WHERE ${filters.join(' AND ')}` : '';
 
   const baseFrom = `
-    FROM actividades_usuarios u
+    FROM usuarios_actividades u
     LEFT JOIN actividades_proveedores p ON p.id = u.proveedor_id
   `;
 
