@@ -31,6 +31,9 @@ const slugify = (s = '') =>
     .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
     .toLowerCase().replace(/[^a-z0-9]+/g, '');
 
+// ─────────────────────────────────────────────
+// Handler principal
+// ─────────────────────────────────────────────
 export default async function loginUsuarios(req, res) {
   // Soporta JSON y x-www-form-urlencoded
   const usuarioRaw  = req.body?.usuario ?? '';
@@ -48,7 +51,9 @@ export default async function loginUsuarios(req, res) {
   }
 
   try {
-    // 👇 Tabla usuarios_cts + cálculo de expiración en Postgres
+    // ────────────────────────────────────────
+    // 1) PRIMERO: usuarios_cts (sistema central)
+    // ────────────────────────────────────────
     const { rows } = await pool.query(
       `
       SELECT
@@ -72,14 +77,95 @@ export default async function loginUsuarios(req, res) {
 
     const u = rows[0];
 
-    // 🔴 Usuario NO existe
+    // 🔸 Si NO existe en usuarios_cts, probamos en usuarios_actividades
     if (!u) {
-      return res.status(401).json({
-        success: false,
-        code: 'INVALID_CREDENTIALS',
-        message: 'Usuario o contraseña incorrectos.'
+      // ────────────────────────────────────────
+      // 2) FALLBACK: usuarios_actividades
+      // ────────────────────────────────────────
+      const actResult = await pool.query(
+        `
+        SELECT
+          id,
+          usuario,
+          nombre,
+          proveedor_id,
+          password,
+          tipo_usuario,
+          activo,
+          proveedor           -- texto del proveedor (columna de tu tabla)
+        FROM public.usuarios_actividades
+        WHERE LOWER(usuario) = LOWER($1)
+        LIMIT 1
+        `,
+        [usuario]
+      );
+
+      const a = actResult.rows[0];
+
+      // 🔴 No existe tampoco en usuarios_actividades
+      if (!a) {
+        return res.status(401).json({
+          success: false,
+          code: 'INVALID_CREDENTIALS',
+          message: 'Usuario o contraseña incorrectos.'
+        });
+      }
+
+      // 🔴 Usuario INACTIVO en usuarios_actividades
+      if (!a.activo) {
+        return res.status(403).json({
+          success: false,
+          code: 'USUARIO_INACTIVO',
+          message: 'Usuario inactivo.',
+          inactivo: true,
+          error: 'USUARIO_INACTIVO'
+        });
+      }
+
+      // 🔴 Contraseña incorrecta (comparación simple)
+      const storedPassA = String(a.password ?? '');
+      const inputPassA  = String(password);
+
+      if (storedPassA !== inputPassA) {
+        return res.status(401).json({
+          success: false,
+          code: 'INVALID_CREDENTIALS',
+          message: 'Usuario o contraseña incorrectos.'
+        });
+      }
+
+      // ✅ Login OK desde usuarios_actividades (por ahora SIN expiración de password)
+      const rolA           = mapRol(a.tipo_usuario);
+      const providerNameA  = a.proveedor || null;
+      const providerSlugA  = providerNameA ? slugify(providerNameA) : null;
+
+      return res.json({
+        success: true,
+        message: 'Login exitoso',
+        usuario: {
+          id: a.id,
+          usuario: a.usuario,
+          nombre: a.nombre,
+
+          // roles/perfiles
+          tipo_usuario: a.tipo_usuario,
+          rol:          rolA,
+
+          // datos de proveedor (para actividades / filtros)
+          proveedor:     providerNameA,
+          provider:      providerSlugA,
+          provider_name: providerNameA,
+
+          // alias de compatibilidad
+          proveedor_slug: providerSlugA,
+          empresa:        providerNameA
+        }
       });
     }
+
+    // ────────────────────────────────────────
+    // 3) Lógica ORIGINAL de usuarios_cts
+    // ────────────────────────────────────────
 
     // 🔴 Usuario INACTIVO
     if (!u.activo) {
@@ -140,7 +226,7 @@ export default async function loginUsuarios(req, res) {
       });
     }
 
-    // ✅ Login OK (NO expirada)
+    // ✅ Login OK (NO expirada) desde usuarios_cts
     return res.json({
       success: true,
       message: 'Login exitoso',
