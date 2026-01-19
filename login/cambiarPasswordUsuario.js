@@ -59,6 +59,10 @@ export default async function cambiarPasswordUsuario(req, res) {
       }
 
       const storedPass = String(u.password ?? '');
+      const prevPass   = u.password_anterior != null
+        ? String(u.password_anterior)
+        : null;
+
       if (storedPass !== String(passwordActual)) {
         return res.status(401).json({
           success: false,
@@ -67,8 +71,11 @@ export default async function cambiarPasswordUsuario(req, res) {
         });
       }
 
-      // Evitar que ponga exactamente la misma
-      if (storedPass === passwordNueva) {
+      // Evitar que ponga exactamente la misma (actual o anterior)
+      if (
+        storedPass === passwordNueva ||
+        (prevPass && prevPass === passwordNueva)
+      ) {
         return res.status(400).json({
           success: false,
           error: 'SAME_PASSWORD',
@@ -127,6 +134,10 @@ export default async function cambiarPasswordUsuario(req, res) {
     }
 
     const storedPassAct = String(a.password ?? '');
+    const prevPassAct   = a.password_anterior != null
+      ? String(a.password_anterior)
+      : null;
+
     if (storedPassAct !== String(passwordActual)) {
       return res.status(401).json({
         success: false,
@@ -135,7 +146,11 @@ export default async function cambiarPasswordUsuario(req, res) {
       });
     }
 
-    if (storedPassAct === passwordNueva) {
+    // Evitar que ponga exactamente la misma (actual o anterior)
+    if (
+      storedPassAct === passwordNueva ||
+      (prevPassAct && prevPassAct === passwordNueva)
+    ) {
       return res.status(400).json({
         success: false,
         error: 'SAME_PASSWORD',
