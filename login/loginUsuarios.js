@@ -90,9 +90,13 @@ export default async function loginUsuarios(req, res) {
           nombre,
           proveedor_id,
           password,
+          password_anterior,
           tipo_usuario,
           activo,
-          proveedor           -- texto del proveedor (columna de tu tabla)
+          proveedor,           -- texto del proveedor (columna de tu tabla)
+          created_at,
+          updated_at,
+          (NOW() - COALESCE(updated_at, created_at)) > INTERVAL '30 days' AS password_expirada
         FROM public.usuarios_actividades
         WHERE LOWER(usuario) = LOWER($1)
         LIMIT 1
@@ -134,11 +138,43 @@ export default async function loginUsuarios(req, res) {
         });
       }
 
-      // ✅ Login OK desde usuarios_actividades (por ahora SIN expiración de password)
+      // ✅ Usuario + password correcto en usuarios_actividades
       const rolA           = mapRol(a.tipo_usuario);
       const providerNameA  = a.proveedor || null;
       const providerSlugA  = providerNameA ? slugify(providerNameA) : null;
 
+      // 🔸 Verificar si la contraseña YA EXPIRÓ (con created_at / updated_at)
+      const expiredA = a.password_expirada === true;
+
+      if (expiredA) {
+        return res.status(200).json({
+          success: false,
+          code: 'PASSWORD_EXPIRED',
+          message: 'La contraseña ha expirado, debes actualizarla.',
+          passwordExpired: true,
+          error: 'PASSWORD_EXPIRED',
+          usuario: {
+            id: a.id,
+            usuario: a.usuario,
+            nombre: a.nombre,
+
+            // roles/perfiles
+            tipo_usuario: a.tipo_usuario,
+            rol:          rolA,
+
+            // datos de proveedor (para actividades / filtros)
+            proveedor:     providerNameA,
+            provider:      providerSlugA,
+            provider_name: providerNameA,
+
+            // alias de compatibilidad
+            proveedor_slug: providerSlugA,
+            empresa:        providerNameA
+          }
+        });
+      }
+
+      // ✅ Login OK desde usuarios_actividades (NO expirada)
       return res.json({
         success: true,
         message: 'Login exitoso',
@@ -221,7 +257,7 @@ export default async function loginUsuarios(req, res) {
 
           // alias de compatibilidad
           proveedor_slug: provider || null,
-          empresa: provider_name || null
+          empresa:        provider_name || null
         }
       });
     }
@@ -246,7 +282,7 @@ export default async function loginUsuarios(req, res) {
 
         // alias de compatibilidad
         proveedor_slug: provider || null,
-        empresa: provider_name || null
+        empresa:        provider_name || null
       }
     });
 
