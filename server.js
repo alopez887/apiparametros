@@ -4,7 +4,8 @@ import express from 'express';
 import cors from 'cors';
 
 //Sistema de login
-import loginUsuarios from './loginUsuarios.js';
+import loginUsuarios from './login/loginUsuarios.js';
+import cambiarPasswordUsuario from './login/cambiarPasswordUsuario.js';
 
 // Handlers tipo de cambio
 import { obtenerTipoCambio } from './obtenerTipoCambio.js';
@@ -110,6 +111,7 @@ app.get('/', (_req, res) => {
 
 // ===== Login ==============
 app.post('/api/login-usuario', loginUsuarios);
+app.post('/api/cambiar-password', cambiarPasswordUsuario);
 
 // ===== Tipo de cambio =====
 app.get('/api/tipo-cambio', obtenerTipoCambio);

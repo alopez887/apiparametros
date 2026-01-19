@@ -31,6 +31,16 @@ const slugify = (s = '') =>
     .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
     .toLowerCase().replace(/[^a-z0-9]+/g, '');
 
+// 🔹 Expiración por fecha "modificado" (> 1 mes)
+const MS_30_DIAS = 30 * 24 * 60 * 60 * 1000;
+const isPasswordExpired = (modificado) => {
+  if (!modificado) return false;
+  const last = new Date(modificado);
+  if (Number.isNaN(last.getTime())) return false;
+  const diff = Date.now() - last.getTime();
+  return diff > MS_30_DIAS;
+};
+
 export default async function loginUsuarios(req, res) {
   // Soporta JSON y x-www-form-urlencoded
   const usuarioRaw  = req.body?.usuario ?? '';
@@ -103,11 +113,42 @@ export default async function loginUsuarios(req, res) {
       });
     }
 
-    // ✅ Login OK
-    const rol = mapRol(u.tipo_usuario);
+    // Ya sabemos que el usuario y la contraseña SON CORRECTOS.
+    const rol           = mapRol(u.tipo_usuario);
     const provider_name = u.proveedor || null;
-    const provider = provider_name ? slugify(provider_name) : null;
+    const provider      = provider_name ? slugify(provider_name) : null;
 
+    // 🔸 Verificar si la contraseña YA EXPIRÓ por fecha "modificado"
+    if (isPasswordExpired(u.modificado)) {
+      // 👉 NO damos login, solo avisamos al iframe que debe forzar cambio
+      return res.status(200).json({
+        success: false,
+        code: 'PASSWORD_EXPIRED',
+        message: 'La contraseña ha expirado, debes actualizarla.',
+        passwordExpired: true,
+        error: 'PASSWORD_EXPIRED',
+        usuario: {
+          id: u.id,
+          usuario: u.usuario,
+          nombre: u.nombre,
+
+          // roles/perfiles
+          tipo_usuario: u.tipo_usuario, // original
+          rol,                          // normalizado para el front
+
+          // datos de proveedor (para actividades / filtros)
+          proveedor: u.proveedor,
+          provider,
+          provider_name,
+
+          // alias de compatibilidad
+          proveedor_slug: provider || null,
+          empresa: provider_name || null
+        }
+      });
+    }
+
+    // ✅ Login OK (NO expirada)
     return res.json({
       success: true,
       message: 'Login exitoso',
