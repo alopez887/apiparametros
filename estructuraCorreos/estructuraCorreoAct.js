@@ -4,8 +4,8 @@
 import pool from '../conexion.js';
 
 
-const ALLOWED_SERVICES = new Set(['activities', 'transport', 'tours']);
-const ALLOWED_MOMENTS  = new Set(['purchase', 'schedule', 'single']);
+const ALLOWED_SERVICES = new Set(['actividades', 'transport', 'tours']);
+const ALLOWED_MOMENTS  = new Set(['compra', 'reservacion', 'single']);
 
 function normService(v) {
   const s = String(v || '').trim().toLowerCase();
@@ -22,7 +22,7 @@ function asText(v) {
 }
 
 /**
- * GET /api/ajustes-correo?servicio=activities&momento=purchase
+ * GET /api/ajustes-correo?servicio=actividades&momento=compra
  */
 export async function obtenerAjustesCorreo(req, res, next) {
   try {
@@ -111,8 +111,8 @@ export async function obtenerAjustesCorreo(req, res, next) {
  * POST /api/ajustes-correo
  * Body JSON esperado:
  * {
- *   servicio: "activities" | "transport" | "tours",
- *   momento:  "purchase" | "schedule" | "single",
+ *   servicio: "actividades" | "transport" | "tours",
+ *   momento:  "compra" | "reservacion" | "single",
  *
  *   bcc,
  *   nombre_remitente,
